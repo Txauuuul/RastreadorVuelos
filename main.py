@@ -1,24 +1,24 @@
 """
 main.py - Punto de entrada del Flight Tracker
 
-Este es el archivo que ejecutarás para iniciar el rastreador.
-Aquí se orquestan todos los módulos (API, BD, alertas, etc.)
+ARQUITECTURA CORREGIDA (python-telegram-bot v20+):
+- Thread Principal: Bot Telegram run_polling() 
+- Thread Secundario 1: Servidor web dummy (puerto Render)
+- Thread Secundario 2: Scheduler de búsquedas cada 2h
+
+Nota CRÍTICA: La versión 20+ de python-telegram-bot REQUIERE que
+Application.run_polling() corra en el thread principal.
+Moverlo a un thread secundario rompe los callbacks internos del Updater.
 
 MODO DE USO:
   - Local (desarrollo):   python main.py (con DEBUG=True en .env)
   - Nube (producción):    python main.py (con DEBUG=False en .env)
   - Gestionar vuelos:     python manage_flights.py
-
-MODO DE EJECUCIÓN:
-  - El bot Telegram corre en polling (escuchando comandos)
-  - El scheduler corre en paralelo (buscando vuelos cada 2h)
-  - Servidor web dummy escucha en puerto Render (para detect active process)
 """
 
 import sys
 import os
 import argparse
-import asyncio
 import threading
 import time
 from pathlib import Path
@@ -59,9 +59,8 @@ def start_health_check_server():
     """
     Inicia servidor web en un hilo secundario
     
-    CONCEPTO EDUCATIVO - Threading:
-    Un thread permite ejecutar código en paralelo sin bloquear.
-    Así el bot y el scheduler pueden correr simultáneamente.
+    Esto mantiene a Render "contento" sabiendo que hay un puerto abierto.
+    Se ejecuta en daemon thread para no bloquear el programa principal.
     """
     port = int(os.getenv('PORT', 10000))
     
@@ -73,8 +72,41 @@ def start_health_check_server():
     return server
 
 
+def start_scheduler_thread():
+    """
+    Inicia el scheduler en un hilo secundario
+    
+    El scheduler busca vuelos cada 2 horas automáticamente.
+    Se ejecuta como daemon thread para no bloquear el thread principal.
+    
+    CONCEPTO EDUCATIVO - Threading:
+    Un daemon thread se detiene cuando el programa principal termina.
+    Así no hay threads huérfanos.
+    """
+    try:
+        scheduler = FlightTrackerScheduler()
+        thread = threading.Thread(
+            target=scheduler.run,
+            daemon=True,
+            name="SchedulerThread"
+        )
+        thread.start()
+        logger.info("✅ Scheduler iniciado en thread secundario")
+        return scheduler
+    
+    except Exception as e:
+        logger.error(f"❌ Error iniciando scheduler: {e}")
+        raise
+
+
 def main():
-    """Función principal del programa"""
+    """
+    Función principal - THREAD PRINCIPAL dedicado al Bot Telegram
+    
+    ARQUITECTURA:
+    - Este thread ejecuta app.run_polling() (requerido para v20+ de python-telegram-bot)
+    - Threads secundarios manejan servidor web y scheduler
+    """
     logger.info("=" * 70)
     logger.info("🛫 FLIGHT TRACKER - Rastreador de Vuelos")
     logger.info("=" * 70)
@@ -82,78 +114,80 @@ def main():
     if DEBUG:
         logger.debug("🧪 MODO DEBUG: Ejecutando un check único")
     else:
-        logger.info("🌐 MODO PRODUCCIÓN: Iniciando scheduler 24/7 + Bot Telegram")
+        logger.info("🌐 MODO PRODUCCIÓN: Bot Telegram + Scheduler 24/7")
     
     try:
-        # PASO 1: Iniciar servidor web dummy (para Render)
-        logger.info("\n📡 PASO 1: Preparar servidor web...")
+        # ====================================================================
+        # MODO DEBUG: Solo ejecutar un check y salir
+        # ====================================================================
+        if DEBUG:
+            logger.debug("\n📡 (DEBUG) Saltando servidor web...")
+            logger.debug("⏱️ (DEBUG) Ejecutando scheduler una sola vez...")
+            
+            scheduler = FlightTrackerScheduler()
+            scheduler.run_once()
+            
+            logger.info("✅ Check completado. Programa terminado.\n")
+            return
+        
+        # ====================================================================
+        # MODO PRODUCCIÓN: Iniciar todos los servicios
+        # ====================================================================
+        logger.info("\n🚀 INICIANDO SERVICIOS...\n")
+        
+        # PASO 1: Iniciar servidor web dummy (thread secundario)
+        logger.info("📡 PASO 1: Iniciar servidor web...")
         start_health_check_server()
         
-        # PASO 2: Iniciar el scheduler (búsquedas cada 2h)
-        logger.info("\n⏱️ PASO 2: Iniciar scheduler de búsquedas...")
-        scheduler = FlightTrackerScheduler()
+        # PASO 2: Iniciar scheduler (thread secundario)
+        logger.info("⏱️ PASO 2: Iniciar scheduler de búsquedas...")
+        start_scheduler_thread()
         
-        # PASO 3: Iniciar el bot Telegram
-        logger.info("\n💬 PASO 3: Iniciar bot de Telegram...")
+        # PEQUEÑA PAUSA para que los threads inicien
+        time.sleep(0.5)
+        
+        # ====================================================================
+        # PASO 3: Iniciar Bot Telegram (THREAD PRINCIPAL)
+        # ====================================================================
+        # ESTO ES CRÍTICO: El bot DEBE ejecutarse en el thread principal
+        # para python-telegram-bot v20+. Si lo movemos a un thread secundario,
+        # los callbacks internos del Updater se rompen.
+        # ====================================================================
+        
+        logger.info("💬 PASO 3: Iniciar Bot Telegram en thread principal...\n")
+        
         bot_commands = TelegramBotCommands()
         
-        # En modo DEBUG, solo ejecutar un check
-        if DEBUG:
-            scheduler.run_once()
-            logger.info("✅ Check completado. Programa terminado.\n")
-        else:
-            # MODO PRODUCCIÓN: Correr scheduler y bot en paralelo
-            logger.info("\n🚀 INICIADO - Scheduler + Bot Telegram ejecutándose\n")
-            
-            # Hilo 1: Scheduler (búsquedas cada 2 horas)
-            scheduler_thread = threading.Thread(
-                target=scheduler.run,
-                daemon=True,
-                name="SchedulerThread"
-            )
-            scheduler_thread.start()
-            logger.info("✅ Scheduler iniciado en thread secundario")
-            
-            # Hilo 2: Bot Telegram (polling permanente)
-            try:
-                async def run_bot():
-                    """Correr el bot Telegram con polling"""
-                    from telegram.ext import Application
-                    
-                    # Crear application
-                    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-                    
-                    # Registrar handlers de comandos
-                    handlers = bot_commands.get_handlers()
-                    for handler in handlers:
-                        app.add_handler(handler)
-                    
-                    logger.info("✅ Bot Telegram inicializado con handlers")
-                    
-                    # Ejecutar polling
-                    logger.info("🔔 Bot escuchando en polling...")
-                    async with app:
-                        await app.start()
-                        
-                        # Mantener el bot corriendo
-                        while True:
-                            await asyncio.sleep(1)
-                        
-                        await app.stop()
-                
-                # Correr el bot en el event loop actual
-                asyncio.run(run_bot())
-            
-            except KeyboardInterrupt:
-                logger.info("\n⏹️ Programa detenido por el usuario")
-            except Exception as e:
-                logger.error(f"❌ Error en bot Telegram: {e}")
-                raise
+        # Crear la aplicación del bot
+        from telegram.ext import Application
+        
+        app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        
+        # Registrar todos los handlers
+        handlers = bot_commands.get_handlers()
+        for handler in handlers:
+            app.add_handler(handler)
+        
+        logger.info("✅ Bot Telegram inicializado con handlers")
+        logger.info("🔔 Bot escuchando en polling...\n")
+        logger.info("=" * 70)
+        logger.info("✅ SISTEMA COMPLETAMENTE OPERATIVO")
+        logger.info("=" * 70)
+        logger.info("- Servidor web: puerto 10000")
+        logger.info("- Scheduler: búsquedas cada 2 horas")
+        logger.info("- Bot Telegram: escuchando comandos")
+        logger.info("=" * 70 + "\n")
+        
+        # EJECUTAR EL BOT EN EL THREAD PRINCIPAL
+        # Este es el evento bloqueante que mantiene el programa corriendo
+        app.run_polling(allowed_updates=None)
     
     except KeyboardInterrupt:
         logger.info("\n⏹️ Programa detenido por el usuario\n")
     except Exception as e:
         logger.error(f"❌ Error fatal: {e}\n")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
