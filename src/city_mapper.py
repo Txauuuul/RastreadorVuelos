@@ -240,9 +240,11 @@ async def find_cheapest_airport(
 
 
 def format_city_name(city: str) -> str:
-    """Formatear nombre de ciudad para respuestas amigables"""
+    """Formatear nombre de ciudad para respuestas (sin emojis para evitar encoding issues)"""
     normalized = normalize_city_name(city)
-    return CITY_LABELS.get(normalized, f"📍 {city.title()}")
+    # Simplemente retornar el nombre con primera letra mayúscula
+    # Sin usar emojis para evitar problemas de encoding
+    return city.title() if city else "Desconocida"
 
 
 def get_all_cities() -> List[str]:

@@ -121,52 +121,62 @@ class TelegramBotCommands:
     
     async def agregar_origen(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Procesar nombre de ciudad (origen)"""
-        origin_city = update.message.text.strip()
-        
-        # Validar que la ciudad exista en nuestro mapeo
-        iata_codes = get_iata_codes_for_city(origin_city)
-        
-        if not iata_codes:
+        try:
+            origin_city = update.message.text.strip()
+            
+            # Validar que la ciudad exista en nuestro mapeo
+            iata_codes = get_iata_codes_for_city(origin_city)
+            
+            if not iata_codes:
+                await update.message.reply_text(
+                    f"❌ No reconozco la ciudad '{origin_city}'.\n"
+                    "Intenta con: Madrid, Barcelona, Londres, París, Nueva York, etc."
+                )
+                return self.AGREGAR_ORIGEN
+            
+            context.user_data['origin_city'] = origin_city
+            context.user_data['origin_iata'] = iata_codes[0] if len(iata_codes) == 1 else iata_codes
+            
             await update.message.reply_text(
-                f"❌ No reconozco la ciudad '{origin_city}'.\n"
-                "Intenta con: Madrid, Barcelona, Londres, París, Nueva York, etc."
+                f"✅ Origen: {format_city_name(origin_city)}\n\n"
+                "¿A qué <b>ciudad</b> quieres ir?",
+                parse_mode='HTML'
             )
+            return self.AGREGAR_DESTINO
+        except Exception as e:
+            logger.error(f"❌ Error en agregar_origen: {e}", exc_info=True)
+            await update.message.reply_text(f"❌ Error inesperado: {str(e)}")
             return self.AGREGAR_ORIGEN
-        
-        context.user_data['origin_city'] = origin_city
-        context.user_data['origin_iata'] = iata_codes[0] if len(iata_codes) == 1 else iata_codes
-        
-        await update.message.reply_text(
-            f"✅ Origen: {format_city_name(origin_city)}\n\n"
-            "¿A qué <b>ciudad</b> quieres ir?",
-            parse_mode='HTML'
-        )
-        return self.AGREGAR_DESTINO
     
     async def agregar_destino(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Procesar nombre de ciudad (destino)"""
-        destination_city = update.message.text.strip()
-        
-        # Validar que la ciudad exista en nuestro mapeo
-        iata_codes = get_iata_codes_for_city(destination_city)
-        
-        if not iata_codes:
+        try:
+            destination_city = update.message.text.strip()
+            
+            # Validar que la ciudad exista en nuestro mapeo
+            iata_codes = get_iata_codes_for_city(destination_city)
+            
+            if not iata_codes:
+                await update.message.reply_text(
+                    f"❌ No reconozco la ciudad '{destination_city}'.\n"
+                    "Intenta con: Madrid, Barcelona, Londres, París, Nueva York, etc."
+                )
+                return self.AGREGAR_DESTINO
+            
+            context.user_data['destination_city'] = destination_city
+            context.user_data['destination_iata'] = iata_codes[0] if len(iata_codes) == 1 else iata_codes
+            
             await update.message.reply_text(
-                f"❌ No reconozco la ciudad '{destination_city}'.\n"
-                "Intenta con: Madrid, Barcelona, Londres, París, Nueva York, etc."
+                f"✅ Destino: {format_city_name(destination_city)}\n\n"
+                "¿En qué <b>mes o rango de fechas</b> quieres viajar?\n"
+                "<i>Ejemplos: febrero, marzo, 01-03 a 31-03, etc.</i>",
+                parse_mode='HTML'
             )
+            return self.AGREGAR_FECHA
+        except Exception as e:
+            logger.error(f"❌ Error en agregar_destino: {e}", exc_info=True)
+            await update.message.reply_text(f"❌ Error inesperado: {str(e)}")
             return self.AGREGAR_DESTINO
-        
-        context.user_data['destination_city'] = destination_city
-        context.user_data['destination_iata'] = iata_codes[0] if len(iata_codes) == 1 else iata_codes
-        
-        await update.message.reply_text(
-            f"✅ Destino: {format_city_name(destination_city)}\n\n"
-            "¿En qué <b>mes o rango de fechas</b> quieres viajar?\n"
-            "<i>Ejemplos: febrero, marzo, 01-03 a 31-03, etc.</i>",
-            parse_mode='HTML'
-        )
-        return self.AGREGAR_FECHA
     
     async def agregar_fecha(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Procesar mes/rango de fechas y buscar el vuelo más barato"""
