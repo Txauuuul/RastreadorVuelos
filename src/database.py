@@ -49,6 +49,8 @@ class Database:
                         origin TEXT NOT NULL,
                         destination TEXT NOT NULL,
                         departure_date TEXT NOT NULL,
+                        date_range_start TEXT,
+                        date_range_end TEXT,
                         min_price REAL NOT NULL,
                         price_reduction_percent REAL NOT NULL,
                         is_active BOOLEAN DEFAULT 1,
@@ -99,14 +101,22 @@ class Database:
                           destination: str, 
                           departure_date: str,
                           min_price: float = 50.0,
-                          price_reduction_percent: float = 15.0) -> bool:
+                          price_reduction_percent: float = 15.0,
+                          date_range_start: str = None,
+                          date_range_end: str = None) -> bool:
         """
         Agregar un vuelo a monitorear
+        
+        CONCEPTO EDUCATIVO - Flexibilidad de fechas:
+        Antes: solo soportaba una fecha exacta
+        Ahora: también soporta rangos de fechas
         
         Args:
             origin: Código IATA origen
             destination: Código IATA destino
-            departure_date: Fecha de salida (DD-MM-YYYY)
+            departure_date: Fecha de salida (DD-MM-YYYY) - mejor fecha del rango
+            date_range_start: Inicio del rango (DD-MM-YYYY) - opcional
+            date_range_end: Fin del rango (DD-MM-YYYY) - opcional
             min_price: Precio mínimo absoluto (€)
             price_reduction_percent: Porcentaje de reducción para alerta (%)
         
@@ -118,12 +128,19 @@ class Database:
                 cursor = conn.cursor()
                 cursor.execute("""
                     INSERT INTO watched_flights 
-                    (origin, destination, departure_date, min_price, price_reduction_percent)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (origin.upper(), destination.upper(), departure_date, min_price, price_reduction_percent))
+                    (origin, destination, departure_date, date_range_start, date_range_end, 
+                     min_price, price_reduction_percent)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (origin.upper(), destination.upper(), departure_date, 
+                      date_range_start, date_range_end, min_price, price_reduction_percent))
                 
                 conn.commit()
-                logger.info(f"✅ Vuelo agregado: {origin} → {destination} ({departure_date})")
+                
+                if date_range_start and date_range_end:
+                    logger.info(f"✅ Vuelo agregado: {origin} → {destination} "
+                               f"({date_range_start} a {date_range_end})")
+                else:
+                    logger.info(f"✅ Vuelo agregado: {origin} → {destination} ({departure_date})")
                 return True
         
         except sqlite3.IntegrityError:
@@ -139,8 +156,8 @@ class Database:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, origin, destination, departure_date, min_price, 
-                           price_reduction_percent, created_at
+                    SELECT id, origin, destination, departure_date, date_range_start, date_range_end,
+                           min_price, price_reduction_percent, created_at
                     FROM watched_flights
                     WHERE is_active = 1
                     ORDER BY departure_date ASC
@@ -159,8 +176,8 @@ class Database:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, origin, destination, departure_date, min_price, 
-                           price_reduction_percent, created_at
+                    SELECT id, origin, destination, departure_date, date_range_start, date_range_end,
+                           min_price, price_reduction_percent, created_at
                     FROM watched_flights
                     WHERE id = ?
                 """, (flight_id,))

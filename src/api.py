@@ -213,6 +213,130 @@ class AmadeusAPI:
                 logger.debug(f"  {date_str}: ${min_price}")
         
         return historical_prices
+    
+    def search_flights_date_range(self,
+                                 origin: str,
+                                 destination: str,
+                                 start_date: str,
+                                 end_date: str,
+                                 adults: int = 1) -> dict:
+        """
+        Buscar EL VUELO MÁS BARATO en un rango de fechas
+        
+        CONCEPTO EDUCATIVO - Búsqueda flexible de fechas:
+        En lugar de buscar UN vuelo para UNA fecha específica,
+        buscamos TODOS los vuelos en un rango (ej: todo febrero)
+        y retornamos el más barato con su fecha.
+        
+        Args:
+            origin: Código IATA origen (ej: "MAD")
+            destination: Código IATA destino (ej: "CDG")
+            start_date: Fecha inicio del rango (formato: "DD-MM-YYYY")
+            end_date: Fecha fin del rango (formato: "DD-MM-YYYY")
+            adults: Número de pasajeros
+        
+        Returns:
+            dict con estructura:
+            {
+                'success': bool,
+                'best_price': float,
+                'best_date': str (formato: "DD-MM-YYYY"),
+                'flight': { 'airline': str, 'duration': str, ... },
+                'dates_checked': int,
+                'message': str
+            }
+        
+        Ejemplo:
+            result = api.search_flights_date_range(
+                "MAD", "CDG", "01-02-2025", "28-02-2025"
+            )
+            # Retorna vuelo más barato encontrado en febrero
+        """
+        
+        try:
+            # Validar fechas
+            start_dt = datetime.strptime(start_date, "%d-%m-%Y")
+            end_dt = datetime.strptime(end_date, "%d-%m-%Y")
+            
+            if start_dt > end_dt:
+                logger.error("❌ Fecha inicio debe ser antes que fecha fin")
+                return {
+                    'success': False,
+                    'message': '❌ Fecha inicio debe ser antes que fecha fin'
+                }
+            
+            if (end_dt - start_dt).days > 90:
+                logger.warning("⚠️ Rango > 90 días. Limitando a 90 días")
+                end_dt = start_dt + timedelta(days=90)
+            
+            logger.info(f"🔍 Buscando vuelos más baratos en rango: {start_date} → {end_date}")
+            
+            best_price = float('inf')
+            best_date = None
+            best_flight = None
+            dates_checked = 0
+            dates_with_flights = 0
+            
+            # Iterar sobre cada día en el rango
+            current_date = start_dt
+            while current_date <= end_dt:
+                date_str = current_date.strftime("%d-%m-%Y")
+                dates_checked += 1
+                
+                try:
+                    # Buscar vuelos para este día
+                    result = self.search_flights(origin, destination, date_str, adults=adults)
+                    
+                    if result and result.get('flights'):
+                        dates_with_flights += 1
+                        
+                        # Encontrar el vuelo más barato de este día
+                        cheapest_today = min(result['flights'], key=lambda x: x['price'])
+                        
+                        if cheapest_today['price'] < best_price:
+                            best_price = cheapest_today['price']
+                            best_date = date_str
+                            best_flight = cheapest_today
+                            logger.debug(f"  ✅ {date_str}: {best_price}€ ({cheapest_today['airline']})")
+                
+                except Exception as e:
+                    logger.debug(f"  ⚠️ Error en {date_str}: {e}")
+                
+                # Siguiente día
+                current_date += timedelta(days=1)
+            
+            if best_flight:
+                logger.info(
+                    f"🏆 Vuelo más barato encontrado:\n"
+                    f"   Fecha: {best_date}\n"
+                    f"   Precio: {best_price}€\n"
+                    f"   Aerolínea: {best_flight['airline']}"
+                )
+                
+                return {
+                    'success': True,
+                    'best_price': best_price,
+                    'best_date': best_date,
+                    'flight': best_flight,
+                    'dates_checked': dates_checked,
+                    'dates_with_flights': dates_with_flights,
+                    'message': f"✅ Vuelo más barato: {best_date} por {best_price}€"
+                }
+            else:
+                logger.warning(f"❌ No se encontraron vuelos en el rango {start_date} → {end_date}")
+                return {
+                    'success': False,
+                    'dates_checked': dates_checked,
+                    'dates_with_flights': dates_with_flights,
+                    'message': f"❌ No se encontraron vuelos. Revisados {dates_checked} días"
+                }
+        
+        except Exception as e:
+            logger.error(f"❌ Error buscando rango de fechas: {e}")
+            return {
+                'success': False,
+                'message': f"❌ Error: {str(e)}"
+            }
 
 
 # ==================== FUNCIONES AUXILIARES ====================
