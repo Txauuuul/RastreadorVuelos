@@ -1,0 +1,22 @@
+# API y HTTP
+requests
+amadeus
+
+# Variables de entorno (configuración sensible)
+python-dotenv
+
+# Base de datos
+# sqlite3 viene incluido en Python, no necesitas instalarlo
+
+# Utilidades para logging y validación
+python-dateutil
+
+# Scheduling de tareas periódicas
+schedule
+
+# Opcional: para análisis de datos y cálculos estadísticos
+numpy
+pandas
+
+# Notificaciones por Telegram
+python-telegram-bot==20.7
