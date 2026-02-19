@@ -2,6 +2,9 @@
 
 Un **rastreador automático de vuelos** que monitorea precios en Amadeus y **envía alertas por Telegram** cuando encuentra gangas.
 
+> 📬 **¿POR DÓNDE EMPIEZO?**  
+> Si es tu primera vez aquí, ve a [HOJA_DE_RUTA.md](HOJA_DE_RUTA.md) para guías personalizadas según tu situación.
+
 ## ✨ Características
 
 ✅ **Búsqueda automática cada 2 horas** en Amadeus API  
@@ -125,32 +128,29 @@ python manage_flights.py
 
 ## 🌐 DESPLEGAR EN LA NUBE
 
-Ver documento completo: [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md)
+### 🥇 Opción recomendada: Render (100% GRATUITO)
 
-### Opción recomendada: Railway
+Ver documento completo: [PLATAFORMAS_GRATUITAS.md](PLATAFORMAS_GRATUITAS.md)
 
-```bash
-# 1. Clonar a GitHub (privado recomendado)
-git init
-git add .
-git commit -m "Flight Tracker"
-git push origin main
+**Guía paso a paso:** [PRIMER_DESPLIEGUE.md](PRIMER_DESPLIEGUE.md) ⭐
 
-# 2. En Railway Dashboard:
-# - "New Project" → "GitHub"
-# - Seleccionar repo
-# - Agregar variables de entorno
-# - Deploy automático ✅
-```
+**Ventajas:**
+- ✅ Completamente gratuito
+- ✅ Excelente documentación
+- ✅ Deploy automático desde GitHub
+- ✅ Se reactiva automáticamente cada 2 horas
+- ✅ Variables de entorno muy fáciles
 
-**Variables de entorno en Railway:**
-```
-AMADEUS_CLIENT_ID=...
-AMADEUS_CLIENT_SECRET=...
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-DEBUG=False
-```
+**Pasos rápidos:**
+1. Código en GitHub ✅
+2. Crear cuenta en https://render.com
+3. "New Web Service" → seleccionar tu repo
+4. Agregar variables de entorno
+5. ¡Listo! Bot 24/7 gratuito
+
+### Más opciones
+
+Ver [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) para comparativa Railway, Google Cloud, etc.
 
 ---
 
@@ -183,40 +183,105 @@ SCHEDULER (cada 2 horas)
 
 ---
 
+## 💬 COMANDOS DE TELEGRAM
+
+Una vez desplegado en la nube, **gestiona TODO desde Telegram sin tocar el código:**
+
+### Comandos disponibles:
+
+```
+/start          → Ver lista de comandos disponibles
+/lista          → Ver todos los vuelos monitoreados (con IDs)
+/agregar        → Añadir nuevo vuelo (5 pasos: origen→destino→fecha→precio→reducción%)
+/modificar      → Cambiar precio mínimo o % de reducción
+/eliminar       → Dejar de monitorear un vuelo
+/historial      → Ver últimos 5 precios de un vuelo
+/estadisticas   → Ver estadísticas globales
+```
+
+### Ejemplo de uso interactivo:
+
+```
+You: /agregar
+Bot: ¿Código IATA origen? (ej: MAD, BCN, BIO)
+You: MAD
+Bot: ✅ Origen: MAD
+     ¿Destino?
+You: NYC
+Bot: ✅ Destino: NYC
+     ¿Fecha salida? (DD-MM-YYYY)
+You: 25-12-2024
+Bot: ✅ Fecha: 25-12-2024
+     ¿Precio mínimo (EUR)? (ej: 300)
+You: 300
+Bot: ✅ Mínimo: 300 EUR
+     ¿Reducción mínima (%)? (ej: 15)
+You: 15
+Bot: ✨ Vuelo creado:
+    🛫 MAD → NYC
+    📅 25-12-2024
+    💰 Mínimo: 300€ o -15% histórico
+```
+
+### Alertas automáticas:
+
+El bot envía **automáticamente**:
+
+1. **Alertas de precios** cuando detecta:
+   - Precio por debajo del mínimo establecido
+   - Precio 15% menos que el promedio histórico
+
+2. **Resumen diario** a las 09:00 AM
+   - Vuelos monitoreados
+   - Alertas enviadas
+   - Precio promedio
+
+---
+
 ## 📋 ESTRUCTURA DEL PROYECTO
 
 ```
 Rastreador/
-├── main.py                 # Punto de entrada
-├── manage_flights.py       # Gestor interactivo de vuelos
-├── requirements.txt        # Dependencias Python
+├── main.py                    # Punto de entrada
+├── manage_flights.py          # Gestor interactivo de vuelos (LOCAL)
+├── requirements.txt           # Dependencias Python
 │
 ├── src/
 │   ├── __init__.py
-│   ├── config.py          # Variables de entorno
-│   ├── logger.py          # Sistema de logs
-│   ├── api.py             # Conexión con Amadeus
-│   ├── database.py        # BD SQLite
-│   ├── alerts.py          # Detección de alertas
-│   ├── notifications.py   # Envío Telegram
-│   └── scheduler.py       # Orquestador principal
+│   ├── config.py              # Variables de entorno
+│   ├── logger.py              # Sistema de logs
+│   ├── api.py                 # Conexión con Amadeus
+│   ├── database.py            # BD SQLite
+│   ├── alerts.py              # Detección de alertas
+│   ├── notifications.py       # Envío Telegram
+│   ├── scheduler.py           # Orquestador principal
+│   └── telegram_commands.py   # Comandos del bot Telegram
 │
 ├── data/
-│   └── vuelos.db          # Base de datos (gitignore)
+│   └── vuelos.db              # Base de datos (gitignore)
 │
 ├── logs/
-│   └── rastreador.log     # Log de ejecución (gitignore)
+│   └── rastreador.log         # Log de ejecución (gitignore)
 │
-├── .env                    # Variables secretas (gitignore)
-├── .env.example            # Plantilla (SÍ subir)
-├── .gitignore              # Archivos a ignorar en Git
-├── Dockerfile              # Para despliegue en nube
-├── Procfile                # Para despliegue en nube
+├── .env                       # Variables secretas (gitignore)
+├── .env.example               # Plantilla (SÍ subir)
+├── .gitignore                 # Archivos a ignorar en Git
+├── Dockerfile                 # Para despliegue en nube
+├── Procfile                   # Para despliegue en nube
 │
-├── README.md               # Este archivo
-├── CLOUD_DEPLOYMENT.md     # Guía de despliegue
-└── requirements.txt        # Dependencias
+├── README.md                  # Este archivo
+├── TELEGRAM_COMMANDS.md       # Guía de comandos del bot ⭐
+├── CLOUD_DEPLOYMENT.md        # Guía de despliegue en nube
+├── PLATAFORMAS_GRATUITAS.md   # Análisis de hosting gratuito
+└── requirements.txt           # Dependencias
 ```
+
+**Documentos principales:**
+- 📖 **README.md** - Inicio rápido y arquitectura
+- 💬 **TELEGRAM_COMMANDS.md** - Guía completa de comandos (LEE ESTO)
+- 🚀 **PRIMER_DESPLIEGUE.md** - Guía paso a paso para Render (COMIENZA AQUÍ)
+- ☁️ **PLATAFORMAS_GRATUITAS.md** - Análisis de hosting gratuito
+- 🚀 **CLOUD_DEPLOYMENT.md** - Instrucciones detalladas de despliegue
 
 ---
 
