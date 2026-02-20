@@ -1,0 +1,103 @@
+"""
+⚡ INICIO RÁPIDO - 3 PASOS
+=========================
+
+Ya CASI está listo. Solo necesitas 3 pasos para empezar:
+
+
+PASO 1: INSTALAR DEPENDENCIAS (2 minutos)
+==========================================
+
+Terminal (Windows/Mac/Linux):
+  pip install -r requirements.txt
+
+✅ Espera a que termine
+
+
+PASO 2: ABRIR 2 TERMINALES
+===========================
+
+TERMINAL 1 - Bot de Telegram:
+  python run_telegram_bot.py
+
+Verás:
+  ✅ Inicializando base de datos...
+  ✅ Iniciando Bot de Telegram...
+  ✅ Bot escuchando mensajes...
+
+
+TERMINAL 2 - Buscador Automático:
+  python run_search_worker.py
+
+Verás:
+  ✅ Inicializando base de datos...
+  ✅ Iniciando Buscador Automático...
+  ⏰ Buscará cada 5 horas
+
+
+PASO 3: USAR EN TELEGRAM
+========================
+
+Abre Telegram y escribe:
+  /agregar
+
+El bot te hará preguntas. Responde:
+
+1. ¿De dónde? → Madrid
+2. ¿A dónde? → Nueva York
+3. Desde qué fecha → 01-06-2026
+4. Hasta qué fecha → 30-07-2026
+5. ¿Vuelo regreso? → SÍ (o NO)
+6. Si sí: días regreso → 7-14
+7. Porcentaje rebaja → 20
+
+✅ ¡LISTO!
+
+Ahora el sistema:
+- Busca CADA 5 HORAS automáticamente
+- Te avisa si encuentra ofertas
+- Puedes buscar AHORA con: /buscar
+
+
+OTROS COMANDOS:
+===============
+
+/inicio → Ver menú
+/agregar → Agregar nueva ruta
+/listar → Ver tus rutas
+/buscar → Buscar AHORA
+/ayuda → Ver ayuda
+
+
+SI ALGO FALLA:
+==============
+
+1. Verifica .env tiene:
+   AMADEUS_CLIENT_ID=...
+   AMADEUS_CLIENT_SECRET=...
+   TELEGRAM_BOT_TOKEN=...
+   TELEGRAM_CHAT_ID=...
+
+2. Instala de nuevo:
+   pip install -r requirements.txt --upgrade
+
+3. Lee GUIA_RAPIDA.py para más ayuda
+
+4. Ejecuta el test:
+   python test_sistema.py
+
+
+DOCUMENTOS ÚTILES:
+==================
+
+GUIA_RAPIDA.py → Guía completa y detallada
+ARQUITECTURA.py → Explicación técnica
+RESUMEN_FINAL.py → Resumen de todo
+ESTA ARCHIVO → Inicio rápido simplificado
+
+
+¡Ya tienes un Flight Tracker profesional! 🚀
+"""
+
+if __name__ == "__main__":
+    print(__doc__)

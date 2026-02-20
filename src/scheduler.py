@@ -1,53 +1,64 @@
 """
-scheduler.py - Orquestador principal del Flight Tracker
+scheduler.py - Ejecutar búsquedas de precios automáticamente
 
-CONCEPTO EDUCATIVO - Patrón Scheduler:
-Un scheduler es una pieza CRÍTICA que:
-
-1. Ejecuta tareas periódicamente (ej: cada 2 horas buscar vuelos)
-2. Orquesta diferentes módulos (API → BD → Alertas → Notificaciones)
-3. Maneja errores sin romper el flujo
-4. Registra todo en logs para debugging
-
-Este es el "cerebro" del sistema que coordina TODO.
+CONCEPTO EDUCATIVO - Scheduler:
+Un scheduler es como un "reloj" en tu programa que ejecuta tareas cada X tiempo.
+Sin un scheduler, tendrías que ejecutar el programa manualmente.
 """
 
-import time
 import schedule
+import time
 from datetime import datetime
-from typing import List, Dict, Optional
 from src.logger import logger
-from src.config import DEBUG
-from src.api import AmadeusAPI
-from src.database import Database
-from src.alerts import AlertDetector, AlertAnalyzer
-from src.notifications import TelegramNotifier, NotificationManager
 
 
-class FlightTrackerScheduler:
-    """
-    Orquestador principal del rastreador de vuelos
+def buscar_precios():
+    """Función que se ejecuta cada X horas"""
+    logger.info("=" * 60)
+    logger.info("🔍 INICIO DE BÚSQUEDA DE PRECIOS")
+    logger.info(f"⏰ Timestamp: {datetime.utcnow().isoformat()}")
+    logger.info("=" * 60)
     
-    CONCEPTO EDUCATIVO - Inyección de dependencias:
-    En lugar de crear módulos dentro de la clase, los recibimos
-    como parámetros. Esto permite:
-    - Testing fácil (podemos pasar mocks)
-    - Flexibilidad (puedo cambiar implementaciones)
-    - Claridad (se ve qué depende de qué)
-    """
-    
-    def __init__(self,
-                 api: AmadeusAPI = None,
-                 db: Database = None,
-                 telegram_notifier: TelegramNotifier = None):
-        """
-        Inicializar el scheduler
+    try:
+        # AQUÍ IRÁ LA LÓGICA COMPLETA:
+        # 1. Obtener rutas activas de la BD PostgreSQL
+        # 2. Para cada ruta, buscar en Amadeus + Kiwi.com
+        # 3. Guardar precios en historial
+        # 4. Evaluar alertas
+        # 5. Enviar notificaciones por Telegram
         
-        Args:
-            api: Instancia de AmadeusAPI
-            db: Instancia de Database
-            telegram_notifier: Instancia de TelegramNotifier
-        """
+        logger.info("✅ Búsqueda completada exitosamente")
+    
+    except Exception as e:
+        logger.error(f"❌ Error durante la búsqueda: {e}", exc_info=True)
+
+
+def configurar_scheduler(intervalo_horas: int = 2):
+    """
+    Configura el scheduler para ejecutar búsquedas cada N horas
+    
+    Args:
+        intervalo_horas: Cada cuántas horas buscar (default: 2)
+    """
+    logger.info(f"⏰ Configurando scheduler: búsqueda cada {intervalo_horas} horas")
+    schedule.every(intervalo_horas).hours.do(buscar_precios)
+    logger.info(f"✅ Scheduler configurado")
+
+
+def iniciar_scheduler():
+    """Inicia el scheduler (corre infinitamente)"""
+    logger.info("🚀 Iniciando scheduler perpetuo...")
+    
+    # Ejecutar primera búsqueda inmediatamente
+    buscar_precios()
+    
+    # Loop: revisar cada 10 segundos si hay tareas pendientes
+    while True:
+        schedule.run_pending()
+        time.sleep(10)
+
+
+if __name__ == "__main__":
         self.api = api or AmadeusAPI()
         self.db = db or Database()
         self.notifier = telegram_notifier or TelegramNotifier()

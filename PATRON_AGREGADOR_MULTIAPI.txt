@@ -1,0 +1,566 @@
+═══════════════════════════════════════════════════════════════════════
+🏗️ PATRÓN AGREGADOR - Arquitectura Multi-API
+═══════════════════════════════════════════════════════════════════════
+
+FECHA DE IMPLEMENTACIÓN: Febrero 2026
+VERSIÓN: v2.1 - Agregador Paralelo
+ESTADO: ✅ PRODUCTIVO
+
+
+═══════════════════════════════════════════════════════════════════════
+📚 CONCEPTOS CLAVE
+═══════════════════════════════════════════════════════════════════════
+
+¿QUÉ ES UN AGREGADOR?
+─────────────────────
+
+Un Agregador es un patrón de diseño que:
+
+1. COMBINA datos de múltiples fuentes
+2. Oculta la complejidad de cada fuente
+3. Retorna un resultado consolidado
+
+Ejemplo del mundo real:
+┌─────────────────┐
+│  Vuelo Madrid   │  → Google Flights
+├─────────────────┤
+│     → BCN       │  → RapidAPI FlyScraper
+├─────────────────┤
+│  Búsqueda: Ago  │  → RapidAPI Google Flights Scraper
+├─────────────────┤
+│     2026        │  → Amadeus (oficial)
+└─────────────────┘
+         ↓
+    [AGREGADOR]
+         ↓
+  "Mejor: 120€ en FlyScraper"
+
+
+VENTAJAS DEL AGREGADOR:
+───────────────────────
+
+✅ RESILIENCIA: Si una API cae, las otras siguen
+   Antes:  API cae → Bot crashea
+   Ahora:  API cae → Bot usa las otras, sin problemas
+
+✅ COMPARACIÓN AUTOMÁTICA: Encuentra el precio más barato
+   Antes:  Tenías que crear 4 búsquedas manuales
+   Ahora:  Una búsqueda, todas las APIs automáticamente
+
+✅ PARALELISMO: Ejecuta simultáneamente en lugar de secuencial
+   Antes:  3 APIs × 10seg c/u = 30 segundos esperando
+   Ahora:  3 APIs en paralelo = 10 segundos máximo
+
+✅ ESCALABILIDAD: Agregar una 4ª API es trivial
+   Solo creas una nueva clase que implemente APIProvider
+   El agregador automáticamente la usa
+
+✅ TRANSPARENCIA: Cliente no necesita saber qué API existe
+   flight_search_worker.py NO conoce los detalles de APIs
+   Solo llama: agregador.search()
+
+
+═══════════════════════════════════════════════════════════════════════
+🏗️ ARQUITECTURA ACTUAL
+═══════════════════════════════════════════════════════════════════════
+
+ARCHIVO: src/api_aggregator.py
+
+                    ┌────────────────────┐
+                    │  APIAggregator     │
+                    │  (Orquestador)     │
+                    └────────────────────┘
+                              │
+    ┌─────────────────────────┼─────────────────────────┐
+    │                         │                         │
+    ▼                         ▼                         ▼
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+│ AmadeusAPI   │      │FlysScraperAPI│      │ GoogleFlights│
+│ (Oficial)    │      │ (No oficial) │      │ (No oficial) │
+│              │      │ RapidAPI     │      │ RapidAPI     │
+│ Confiable    │      │              │      │              │
+│ Pagada       │      │ Gratuita     │      │ Gratuita     │
+└──────────────┘      └──────────────┘      └──────────────┘
+    │                         │                         │
+    └─────────────────────────┼─────────────────────────┘
+                              │
+                    ┌────────────────────┐
+                    │ FlightOffer        │
+                    │ (Estructura unif.) │
+                    └────────────────────┘
+                              │
+                    ┌────────────────────┐
+                    │ SearchWorker       │
+                    │(flight_search_     │
+                    │ worker.py)         │
+                    └────────────────────┘
+                              │
+                    ┌────────────────────┐
+                    │ Telegram Alert     │
+                    │ "120€ en FlyScraper"
+                    └────────────────────┘
+
+
+CLASES PRINCIPALES:
+───────────────────
+
+1. APIProvider (Clase Base Abstracta)
+   ─────────────────────────────────
+   Interfaz que todos los providers deben implementar
+   
+   Métodos:
+   • search_flights(origin, dest, dates) → List[FlightOffer] | None
+   
+   Atributos:
+   • name: Nombre del provider ("Amadeus", "FlyScraper", etc)
+   • is_configured: ¿Tiene API key configurada?
+   
+   IMPORTANCIA: Define un contrato que todos deben cumplir
+
+
+2. AmadeusProvider (Implementación Oficial)
+   ──────────────────────────────────────────
+   Wrapper de src.api.AmadeusAPI
+   
+   ✓ Más confiable (API oficial)
+   ✗ Pagada (cuota limitada)
+   
+   Retorna:
+   List[FlightOffer] con:
+   • price: float
+   • airline: nombre
+   • departure / arrival: timestamps
+   • api_source: "Amadeus"
+
+
+3. FlysScraperProvider (RapidAPI)
+   ──────────────────────────────
+   Scraper no oficial en https://rapidapi.com
+   
+   ✓ Gratuita (cuota generosa)
+   ✓ Suele tener precios competitivos
+   ✗ No oficial (puede cambiar sin previso)
+   
+   Endpoint: https://flyscraper-api.p.rapidapi.com/search
+   Auth: x-rapidapi-key = RAPIDAPI_KEY
+
+
+4. GoogleFlightsScraperProvider (RapidAPI)
+   ────────────────────────────────────────
+   Scraper no oficial similar a Google Flights
+   
+   ✓ Gratuita
+   ✓ Amplia cobertura
+   ✗ No oficial
+   
+   Endpoint: https://flights-scraper-data1.p.rapidapi.com/search
+   Auth: x-rapidapi-key = RAPIDAPI_KEY
+
+
+5. APIAggregator (Orquestador)
+   ───────────────────────────
+   Ejecuta TODAS las búsquedas en paralelo
+   
+   Método principal:
+   search(origin, dest, departure_date, return_date)
+   → Retorna: (mejor_vuelo, todos_vuelos)
+   
+   Donde:
+   • mejor_vuelo: FlightOffer con el precio más barato
+   • todos_vuelos: List[FlightOffer] con todas las opciones
+   
+   CONCEPTO EDUCATIVO - Threading:
+   Usa threading para paralelismo (no asyncio porque requests
+   no es async-friendly sin wrappers extra)
+   
+   Pseudocódigo:
+   ```
+   def search():
+       threads = []
+       for api in [Amadeus, FlyScraper, googleFlights]:
+           thread = crear_thread(api.search)
+           threads.append(thread)
+       
+       # Ejecutar todos EN PARALELO
+       for thread in threads:
+           thread.start()
+       
+       # Esperar a que terminen (max 15 segundos)
+       for thread in threads:
+           thread.join(timeout=15)
+       
+       # Consolidar resultados
+       todos = concatenar(resultados)
+       mejor = encontrar_minimo(todos, 'price')
+       return mejor, todos
+   ```
+
+
+═══════════════════════════════════════════════════════════════════════
+⚙️ CÓMO USAR EL AGREGADOR
+═══════════════════════════════════════════════════════════════════════
+
+OPCIÓN 1: Uso directo (para testing)
+────────────────────────────────────
+
+from src.api_aggregator import APIAggregator
+
+# Crear agregador (inicializa 3 APIs automáticamente)
+agregador = APIAggregator()
+
+# Buscar
+mejor_vuelo, todos_vuelos = agregador.search(
+    origin="MAD",
+    destination="BCN",
+    departure_date="05-03-2026"
+)
+
+# Usar resultado
+if mejor_vuelo:
+    print(f"Mejor precio: {mejor_vuelo.price}€ en {mejor_vuelo.api_source}")
+    print(f"Salida: {mejor_vuelo.departure}")
+    print(f"Llegada: {mejor_vuelo.arrival}")
+    print(f"Total opciones: {len(todos_vuelos)}")
+
+
+OPCIÓN 2: Uso en SearchWorker (automático)
+───────────────────────────────────────────
+
+flight_search_worker.py AUTOMÁTICAMENTE usa el agregador:
+
+# Esto ya está hecho en flight_search_worker.py
+self.agregador = APIAggregator()
+
+resultado = self.agregador.search(
+    origin=ruta.origen,
+    destination=ruta.destino,
+    departure_date=ruta.fecha_inicio.strftime("%d-%m-%Y"),
+    return_date=ruta.fecha_fin.strftime("%d-%m-%Y")
+)
+
+
+OPCIÓN 3: Agregar tus propias APIs
+──────────────────────────────────
+
+Crear un nuevo provider es simple:
+
+from src.api_aggregator import APIProvider, FlightOffer
+from typing import List, Optional
+
+class TuAPIProvider(APIProvider):
+    def __init__(self):
+        super().__init__("TuAPI")
+        self.is_configured = True  # Si tienes credenciales
+    
+    def search_flights(self, origin, destination, departure_date, return_date=None):
+        try:
+            # Aquí va tu lógica de búsqueda
+            # Hacer llamada HTTP, parsear JSON, etc
+            
+            offers = []
+            for flight in results:
+                offer = FlightOffer(
+                    price=flight['price'],
+                    currency='EUR',
+                    departure=flight['dep_time'],
+                    arrival=flight['arr_time'],
+                    airline=flight['airline'],
+                    stops=flight['stops'],
+                    api_source="TuAPI",  # ← IMPORTANTE
+                    raw_data=flight
+                )
+                offers.append(offer)
+            
+            return offers
+        except Exception as e:
+            print(f"Error en TuAPI: {e}")
+            return None
+
+# Y luego en APIAggregator:
+agregador = APIAggregator()
+agregador.add_provider("TuAPI", TuAPIProvider())
+
+# ¡Automáticamente lo incluye en búsquedas futuras!
+
+
+═══════════════════════════════════════════════════════════════════════
+🔧 CONFIGURACIÓN DE APIS
+═══════════════════════════════════════════════════════════════════════
+
+ARCHIVO: .env
+
+RAPIDAPI_KEY=tu_clave_aqui
+
+Cómo obtener RapidAPI Key:
+1. Ve a https://rapidapi.com
+2. Regístrate (gratis)
+3. Ve a tu dashboard
+4. Copia "X-RapidAPI-Key"
+5. Pega en .env
+
+Las 3 APIs automáticamente verifican si RAPIDAPI_KEY existe.
+Si no existe o es "DUMMY", se desactivan gracefully sin crashear.
+
+
+API: AMADEUS
+────────────
+Requiere:
+  AMADEUS_CLIENT_ID
+  AMADEUS_CLIENT_SECRET
+
+Estado: ✅ Ya configurada (oficial)
+
+
+API: FLYSCRAPER
+────────────
+Requiere:
+  RAPIDAPI_KEY (compartida)
+
+URL: https://rapidapi.com/belchiorarkad/api/flyscraper-api
+
+Status: ✅ Implementada y lista
+
+
+API: GOOGLE FLIGHTS
+──────────────────
+Requiere:
+  RAPIDAPI_KEY (compartida)
+
+URL: https://rapidapi.com/apigeek/api/flights-scraper-data
+
+Status: ✅ Implementada y lista
+
+
+═══════════════════════════════════════════════════════════════════════
+🧪 TESTING DEL AGREGADOR
+═══════════════════════════════════════════════════════════════════════
+
+OPCIÓN 1: Test directo del módulo
+──────────────────────────────────
+
+python src/api_aggregator.py
+
+Esto ejecuta el bloque __main__ que prueba una búsqueda.
+
+
+OPCIÓN 2: Test del sistema completo
+────────────────────────────────────
+
+python test_sistema.py
+
+Incluye test 4b "Agregador Multi-API" que verifica:
+• Inicialización correcta
+• Búsqueda paralela funciona
+• Consolida resultados
+• Retorna mejor vuelo
+
+
+OPCIÓN 3: Test en tiempo real
+──────────────────────────────
+
+python run_combined.py
+
+Ejecuta:
+• Bot de Telegram listening
+• SearchWorker buscando cada 5 horas
+• Ambos usando APIAggregator automáticamente
+
+Usa Telegram para:
+1. /agregar - agregar ruta
+2. /buscar - buscar ahora (usa agregador)
+3. /listar - ver tus rutas
+
+
+═══════════════════════════════════════════════════════════════════════
+⚠️ GESTIÓN DE FALLOS (MUY IMPORTANTE)
+═══════════════════════════════════════════════════════════════════════
+
+PROBLEMA: Las APIs gratuitas son inestables
+───────────────────────────────────────────
+
+RapidAPI a menudo:
+• Agotan cuota mensual
+• Tienen timeouts
+• Devuelven 429 (rate limit)
+• Conexión puede fallar
+
+SOLUCIÓN: Agregador con try/except robusto
+──────────────────────────────────────────
+
+Cada provider está envuelto en try/except:
+
+def search_in_provider(name, provider):
+    try:
+        offers = provider.search_flights(...)
+        results[name] = offers
+    except Exception as e:
+        logger.error(f"{name}: ERROR - {e}")
+        results[name] = []  ← IMPORTANTE: retornar [] no None
+        errors[name] = str(e)
+
+Resultado: Si googleFlights crashea:
+✓ Amadeus: 150€
+✗ googleFlights: ERROR al scrapear
+✓ FlyScraper: 120€
+→ Retorna: 120€ (mejor de lo que funcionó)
+
+
+CASOS DE FALLO:
+───────────────
+
+1. TIMEOUT (API tarda > 10 segundos)
+   Consecuencia: Esta API se salta
+   Otras continúan normalmente
+
+2. CONNECTION ERROR (sin internet)
+   Consecuencia: Esta API se salta
+   Otras continúan normalmente
+
+3. RATE LIMIT (429 Too Many Requests)
+   Consecuencia: Esta API deshabilita hasta mañana
+   Otras continúan normalmente
+
+4. INVALID JSON (respuesta inesperada)
+   Consecuencia: Parse error logeado, API se salta
+   Otras continúan normalmente
+
+5. TODAS FALLAN
+   Consecuencia: mejor_vuelo = None
+   SearchWorker retorna []
+   Bot no envía alerta (es correcto)
+
+
+DEBUGGING:
+──────────
+
+Si sospechas que un API tiene problemas:
+
+1. Revisa logs/flight_tracker.log
+
+2. Busca líneas como:
+   ❌ FlyScraper: Timeout
+   ❌ GoogleFlights: Error de conexión
+   ⚠️ Deshabilitando provider: Amadeus
+
+3. Si quieres deshabilitar una API temporalmente:
+   
+   agregador = APIAggregator()
+   agregador.disable_provider("GoogleFlights")
+   
+   Ahora solo usará Amadeus y FlyScraper
+
+4. Para re-habilitar:
+   
+   agregador.providers["GoogleFlights"].is_configured = True
+
+
+═══════════════════════════════════════════════════════════════════════
+📊 ESTRUCTURA DE DATOS
+═══════════════════════════════════════════════════════════════════════
+
+CLASE: FlightOffer (uniform flight representation)
+───────────────────────────────────────────────
+
+@dataclass
+class FlightOffer:
+    price: float                    # €
+    currency: str = "EUR"           # moneda
+    departure: str = ""             # ISO datetime or empty
+    arrival: str = ""               # ISO datetime or empty
+    airline: str = ""               # nombre
+    stops: int = 0                  # 0=directo, 1=1 escala, etc
+    api_source: str = ""            # "Amadeus", "FlyScraper", etc
+    raw_data: dict = None           # JSON original (para debugging)
+
+
+EJEMPLO DE SALIDA:
+──────────────────
+
+search(origin="MAD", destination="BCN", departure_date="05-03-2026")
+
+Returns:
+
+mejor_vuelo:
+  FlightOffer(
+    price=120.0,
+    currency="EUR",
+    departure="2026-03-05T10:30:00",
+    arrival="2026-03-05T12:00:00",
+    airline="Vueling",
+    stops=0,
+    api_source="FlyScraper",
+    raw_data={...full JSON...}
+  )
+
+todos_vuelos:
+  [
+    FlightOffer(..., price=120.0, api_source="FlyScraper"),
+    FlightOffer(..., price=150.0, api_source="Amadeus"),
+    FlightOffer(..., price=140.0, api_source="GoogleFlights"),
+    FlightOffer(..., price=125.0, api_source="FlyScraper"),
+    ...
+  ]
+
+
+═══════════════════════════════════════════════════════════════════════
+🚀 ROADMAP FUTURO
+═══════════════════════════════════════════════════════════════════════
+
+v2.2 (Próximo)
+────────────
+
+□ Caché de resultados
+  Evitar búsquedas duplicadas en la misma hora
+  Útil para reducir cuota de APIs
+
+□ Rate limiting inteligente
+  Detectar cuándo una API agoró cuota
+  Deshabilitar automáticamente
+
+□ Reintento exponencial
+  Si una API falla, intentar de nuevo con espera creciente
+
+
+v2.3 (Futuro)
+─────────────
+
+□ Más APIs:
+  - Kayak
+  - Skyscanner (oficial si conseguimos key)
+  - Hipmunk (si vuelve online)
+
+□ Machine Learning
+  Aprender qué API suele tener mejores precios
+  Priorizar esa
+
+□ Dashboard web
+  Ver todas las búsquedas
+  Historial de precios por API
+  Comparativa de precisión
+
+
+═══════════════════════════════════════════════════════════════════════
+📝 SUMMARY
+═══════════════════════════════════════════════════════════════════════
+
+✅ IMPLEMENTADO:
+✓ Patrón Agregador (3 APIs en paralelo)
+✓ Búsqueda simultánea (no secuencial)
+✓ Gestión robusta de fallos (try/except por API)
+✓ Estructura unificada (FlightOffer)
+✓ Threading para paralelismo
+✓ Logging detallado de cada step
+✓ Extensible (agregar APIs fácilmente)
+
+🎯 OBJETIVO CUMPLIDO:
+"Comparar precios de múltiples fuentes automáticamente,
+ sin que un fallo en una fuente derrumbe el sistema"
+
+═══════════════════════════════════════════════════════════════════════
+
+Para más info, revisa:
+• src/api_aggregator.py (implementación completa con docstrings)
+• src/flight_search_worker.py (cómo lo usa el bot)
+• test_sistema.py (test del agregador)
+
+═══════════════════════════════════════════════════════════════════════

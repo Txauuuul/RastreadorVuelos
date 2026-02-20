@@ -1,0 +1,51 @@
+# render.yaml - Configuración para Deploy en Render
+# Referencia: https://docs.render.com/deploy-guides
+
+services:
+  - type: web
+    name: flight-tracker-bot
+    runtime: python311
+    
+    # Rama a desplegar
+    branch: main
+    
+    # Script principal a ejecutar
+    startCommand: python run_combined.py
+    
+    # Carpeta raíz (si el código está en subcarpeta, ajusta aquí)
+    rootDir: .
+    
+    # Construcción
+    buildCommand: pip install -r requirements.txt
+    
+    # Variables de Entorno (se configuran en Render Dashboard)
+    # NO guardar secretos aquí - configurarlos en Render UI
+    envVars:
+      # Amadeus API
+      - key: AMADEUS_CLIENT_ID
+        scope: run_time
+      - key: AMADEUS_CLIENT_SECRET
+        scope: run_time
+      
+      # RapidAPI
+      - key: RAPIDAPI_KEY
+        scope: run_time
+      - key: RAPIDAPI_HOST_FLYSCRAPER2
+        value: fly-scraper.p.rapidapi.com
+      - key: RAPIDAPI_HOST_FLIGHTSSCRAPER
+        value: flights-scraper-data.p.rapidapi.com
+      
+      # Telegram
+      - key: TELEGRAM_TOKEN
+        scope: run_time
+      
+      # Database (PostgreSQL remoto o SQLite local)
+      # Si usas Render PostgreSQL, la URL será: postgresql://user:pass@host:5432/db
+      - key: DATABASE_URL
+        scope: run_time
+
+# Health Check
+  healthCheckPath: /health  # Opcional si tienes endpoint de health
+
+# Logs
+  autoDeploy: true  # Deploy automático cuando hayas push a GitHub

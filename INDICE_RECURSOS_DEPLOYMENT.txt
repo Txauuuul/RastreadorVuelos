@@ -1,0 +1,242 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                    📚 ÍNDICE DE RECURSOS - LEE PRIMERO 📚                    ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+
+📖 GUÍAS DE DEPLOYMENT (LEER EN ORDEN)
+═════════════════════════════════════════════════════════════════════════════════
+
+1️⃣  TARJETA_REFERENCIA_RAPIDA.txt (18.6 KB) ⭐⭐⭐ START AQUI
+    ├─ Contenido:
+    │  • Rutas de monitoreo activas
+    │  • Links útiles
+    │  • Variables de entorno necesarias
+    │  • Comandos rápidos
+    │  • Checklist de 13 pasos
+    │  • Comandos Telegram
+    │  • Troubleshooting rápido
+    │
+    ├─ Tiempo lectura: 5 minutos
+    └─ Propósito: Referencia rápida para tener a mano
+
+2️⃣  QUICKSTART_DEPLOY.md (2.2 KB) ⭐⭐ RÁPIDO
+    ├─ Contenido:
+    │  • GitHub setup (3 min)
+    │  • Subir código (3 min)
+    │  • Render setup (2 min)
+    │  • Variables de entorno
+    │  • Links útiles
+    │
+    ├─ Tiempo lectura: 5 minutos
+    └─ Propósito: Guía super resumida, apenas código
+
+3️⃣  GUIA_DEPLOY_GITHUB_RENDER.md (10.2 KB) ⭐ COMPLETA
+    ├─ Contenido:
+    │  • Crear cuenta GitHub (con fotos mentales)
+    │  • Generar Personal Access Token
+    │  • Crear repositorio nuevo o migrar antiguo
+    │  • Subir código desde terminal O GitHub Desktop
+    │  • Configurar render.yaml
+    │  • Variables de entorno en Render
+    │  • Conectar GitHub a Render
+    │  • Monitoreo y actualizaciones
+    │  • Troubleshooting detallado
+    │  • Comandos Git útiles
+    │  • Validación final
+    │
+    ├─ Tiempo lectura: 20 minutos
+    └─ Propósito: Explicación paso a paso de CADA paso
+
+4️⃣  ESTADO_FINAL_PRODUCCION.txt (16.2 KB) 📊 COMPLETO
+    ├─ Contenido:
+    │  • Resumen visual ASCII
+    │  • Lo que se completó hoy
+    │  • Estado actual del sistema
+    │  • Próximos pasos puntualizados
+    │  • Archivos importantes
+    │  • Credenciales necesarias
+    │  • Diagrama de flujo
+    │  • Checklist de verificación
+    │  • Timeboxing (cuánto tarda cada paso)
+    │  • Troubleshooting completo
+    │
+    ├─ Tiempo lectura: 15 minutos
+    └─ Propósito: Visión completa del estado
+
+5️⃣  RESUMEN_SESION_DEPLOYMENT.txt (6.4 KB) 📋 RESUMEN
+    ├─ Contenido:
+    │  • Tareas realizadas
+    │  • Rutas agregadas
+    │  • APIs verificadas
+    │  • Archivos creados
+    │  • Próximos pasos
+    │  • Comparativa local vs Render
+    │  • Checklist final
+    │
+    ├─ Tiempo lectura: 5 minutos
+    └─ Propósito: Resumen conciso de todo
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🛠️  HERRAMIENTAS & SCRIPTS
+═════════════════════════════════════════════════════════════════════════════════
+
+setup_deploy.py (4.4 KB) 🔧 VERIFICADOR
+├─ Propósito: Verificar que todo está listo ANTES de subir a GitHub
+├─ Uso: python setup_deploy.py
+├─ Qué verifica:
+│  • Archivos necesarios presentes
+│  • Directorios estructurados
+│  • .env.example creado
+│  • Git inicializado
+└─ Recomendación: EJECUTA PRIMERO
+
+agregar_rutas.py (3.2 KB) ✈️ AGREGAR RUTAS
+├─ Propósito: Script para agregar nuevas rutas de monitoreo
+├─ Uso: python agregar_rutas.py (edita el script primero)
+├─ Qué hace:
+│  • Conecta a BD
+│  • Agrega rutas con parámetros
+│  • Mostrará confirmación visual
+└─ Ejemplo: Ya fue ejecutado con 2 rutas
+
+listar_rutas.py (969 bytes) 📍 LISTAR RUTAS
+├─ Propósito: Ver todas las rutas activas en la BD
+├─ Uso: python listar_rutas.py
+├─ Output:
+│  ✅ Ruta #1: Madrid → Bangkok
+│  ✅ Ruta #2: Madrid → Nueva York
+└─ Recomendación: Ejecuta para verificar
+
+═════════════════════════════════════════════════════════════════════════════════
+
+⚙️  ARCHIVOS DE CONFIGURACIÓN
+═════════════════════════════════════════════════════════════════════════════════
+
+render.yaml (1.4 KB) 🔧 CONFIG RENDER
+├─ Propósito: Archivo de configuración para deploy en Render
+├─ Contiene: Instrucciones automáticas
+├─ No modificar: A menos que sepas qué haces
+└─ Ubicación correcta: Raíz del proyecto (aquí)
+
+.env.example (template) 📝 TEMPLATE VARIABLES
+├─ Propósito: Template de .env para que copies tus valores
+├─ Contiene: Todas las variables necesarias
+├─ Cómo usar:
+│  1. Copia contenido
+│  2. Haz un archivo .env
+│  3. Llena con TUS valores
+│  4. NUNCA subas .env a GitHub (está en .gitignore)
+└─ Nota: .gitignore ya previene accidentes
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📊 DOCUMENTACIÓN SISTEMA (EXISTENTE - REFERENCIA)
+═════════════════════════════════════════════════════════════════════════════════
+
+DOCUMENTACION_COMPLETA.md (16.4 KB) 📖 TODO EL SISTEMA
+├─ Contenido: Información completa del sistema
+├─ Secciones:
+│  • Arquitectura general
+│  • APIs y credenciales
+│  • Estructura de BD
+│  • Comandos Telegram
+│  • Troubleshooting
+│  • FAQ
+│  • Índices y referencias
+└─ Propósito: Cuando necesites entender algo del sistema
+
+README.md (412 líneas) 📄 INICIO
+├─ Contenido: Descripción general del proyecto
+├─ Qué tiene: Cómo funciona, requisitos, instalación
+└─ Para: Nuevos usuarios o dev documentation
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📋 CHECKPOINTS & VALIDACIÓN
+═════════════════════════════════════════════════════════════════════════════════
+
+Antes de GitHub:
+  ☐ Leer TARJETA_REFERENCIA_RAPIDA.txt
+  ☐ Ejecutar: python setup_deploy.py
+  ☐ Ejecutar: python diagnostics.py
+  ☐ Ejecutar: python listar_rutas.py
+
+Antes de Render:
+  ☐ Código subido a GitHub
+  ☐ Render.yaml presente en raíz
+  ☐ Variables de entorno copiadas
+
+Después de Render:
+  ☐ Build "Active" (no "Building" o "Failed")
+  ☐ Bot responde en Telegram
+  ☐ Logs muestran APIs iniciadas
+
+═════════════════════════════════════════════════════════════════════════════════
+
+🚀 PLAN DE ACCIÓN RÁPIDO (COPIAR Y PEGAR)
+═════════════════════════════════════════════════════════════════════════════════
+
+1. VERIFICA QUE ESTÁ LISTO:
+   python setup_deploy.py
+
+2. CREA GITHUB:
+   Ir a https://github.com/signup
+   Copiar Personal Access Token
+
+3. SUBE TU CÓDIGO:
+   cd c:\XAMP\htdocs\Rastreador
+   git init
+   git add .
+   git commit -m "Flight Tracker v3.0"
+   git remote add origin https://github.com/TU_USUARIO/flight-tracker.git
+   git branch -M main
+   git push -u origin main
+
+4. DEPLOY EN RENDER:
+   Ir a https://render.com
+   New Web Service → Conecta repositorio
+   Agregar variables de .env.example
+   Click Create → Espera a "Active"
+
+5. VERIFICA EN TELEGRAM:
+   Escribe /start al bot
+   Deberías ver el menú
+
+¡LISTO! Ahora está 24/7 en la nube 🎉
+
+═════════════════════════════════════════════════════════════════════════════════
+
+💡 TIPS
+═════════════════════════════════════════════════════════════════════════════════
+
+✅ Guarda tu Personal Access Token en lugar seguro
+✅ No guardes .env en GitHub (ya está en .gitignore)
+✅ Prueba todo localmente ANTES de hacer git push
+✅ Ver logs es tu mejor amigo en Render
+✅ El bot tarda máximo 5 horas en hacer la 1ª búsqueda
+✅ Cada git push = Render redeploya automáticamente
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📞 SI NECESITAS AYUDA
+═════════════════════════════════════════════════════════════════════════════════
+
+Problema:          Dónde buscar:
+─────────────────────────────────────────────────────────────────────────────
+"¿Cómo empiezo?"              TARJETA_REFERENCIA_RAPIDA.txt
+"Paso a paso"                 GUIA_DEPLOY_GITHUB_RENDER.md
+"Resumen rápido"              QUICKSTART_DEPLOY.md
+"¿Qué verifica setup_deploy?" Leer el script mismo
+"¿Cómo agregar rutas?"        Lee agregar_rutas.py
+"Error en Render"             Ver logs en Dashboard
+"¿Qué APIs tengo?"            test_rapidapi.py o diagnostics.py
+"Comandos Telegram"           DOCUMENTACION_COMPLETA.md
+
+═════════════════════════════════════════════════════════════════════════════════
+
+📅 SESIÓN COMPLETADA: 20 de Febrero 2026
+🎉 ESTADO: 100% OPERACIONAL & LISTO PARA PRODUCCIÓN
+✨ VERSIÓN: 3.0 Production Ready
+
+═════════════════════════════════════════════════════════════════════════════════

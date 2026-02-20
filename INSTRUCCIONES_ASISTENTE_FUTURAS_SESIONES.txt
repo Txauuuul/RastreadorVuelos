@@ -1,0 +1,387 @@
+═══════════════════════════════════════════════════════════════════════
+🤖 INSTRUCCIONES PARA EL ASISTENTE - FUTURAS SESIONES
+═══════════════════════════════════════════════════════════════════════
+
+PROPÓSITO:
+──────────
+Este documento establece el protocolo que debe seguir el asistente
+cuando el usuario solicite verificación o trabajo en este proyecto
+en FUTURAS SESIONES.
+
+Requisito del usuario:
+"En el futuro, teniendo acceso a la consola y a los archivos, compruebes
+que todo va correctamente, y si no va, lo soluciones solo o me pidas
+ayuda para hacerlo."
+
+
+═══════════════════════════════════════════════════════════════════════
+🚀 PROTOCOLO DE INICIALIZACIÓN (CADA NUEVA SESIÓN)
+═══════════════════════════════════════════════════════════════════════
+
+PASO 1: VERIFICACIÓN RÁPIDA
+─────────────────────────────
+
+Cuando el usuario inicie sesión, AUTOMÁTICAMENTE:
+
+1. Navegar a: c:\XAMP\htdocs\Rastreador
+2. Ejecutar: $env:PYTHONIOENCODING = 'utf-8'; python diagnostics.py
+3. Analizar resultado
+
+SI diagnostics.py RETORNA "✅ SISTEMA 100% FUNCIONAL":
+└─ Informar al usuario: "Sistema verificado ✅ - 0 problemas detectados"
+└─ Continuar con la tarea del usuario
+
+SI diagnostics.py RETORNA "⚠️ N problemas detectados":
+└─ Ir a PASO 2
+
+
+PASO 2: ANÁLISIS DE PROBLEMAS
+──────────────────────────────
+
+Leer el output de diagnostics.py y categorizar cada problema:
+
+CATEGORÍA A - SOLUCIONABLES AUTOMÁTICAMENTE:
+├─ Test dates obsoletas (05-01-2026, 05-03-2026)
+├─ Importaciones con typos específicos
+├─ Configuración RAPIDAPI_KEY faltante (opcional)
+└─ Fechas en tests en el pasado
+
+CATEGORÍA B - REQUIEREN INFORMACIÓN ADICIONAL:
+├─ Código IATA incorrecto en airport_utils
+├─ Email de credenciales Amadeus incorrecto
+├─ Token Telegram invál ido
+└─ Cambios en estructura de archivo
+
+CATEGORÍA C - REQUIEREN ACCESO EXTERNO:
+├─ PostgreSQL en Render inaccesible
+├─ APIs de RapidAPI caídas/sin acceso
+├─ Credenciales de Render expiradas
+└─ Cambios en APIs externas
+
+
+PASO 3: INTENTO DE SOLUCIÓN AUTOMÁTICA
+───────────────────────────────────────
+
+Para cada problema en CATEGORÍA A:
+
+⚠️  PROBLEMA: Test dates obsoletas
+
+   ACCIÓN:
+   ├─ read_file test_sistema.py (buscar DATE patterns)
+   ├─ Calcular fecha futura actual: now + 25 días
+   ├─ replace_string_in_file (todas las instancias)
+   ├─ Ejecutar: python test_sistema.py
+   └─ Verificar: 8/8 tests PASS
+   
+   REPORTE SI EXITOSO:
+   "✅ Actualicé las fechas de test a [NUEVA_FECHA]. 8/8 tests PASS"
+
+
+⚠️  PROBLEMA: ImportError en módulo X
+
+   ACCIÓN:
+   ├─ read_file src/X.py (verificar síntaxis)
+   ├─ mcp_pylance_mcp_s_pylanceSyntaxErrors (verificar)
+   ├─ Si hay error: grep_search para encontrar línea problemática
+   ├─ Intentar fix simple (typo, indentación)
+   └─ Verificar con: python diagnostics.py
+   
+   SI PUEDE ARREGLARSE:
+   "✅ Arreglé el error de importación. Sistema OK"
+   
+   SI NO PUEDE ARREGLARSE SOLO:
+   "❌ No puedo resolver solo. Problema: [DESCRIPCIÓN]. ¿Puedes revisar?"
+
+
+⚠️  PROBLEMA: RAPIDAPI_KEY no configurada (pero es opcional)
+
+   ACCIÓN:
+   ├─ Informar al usuario sobre su estado
+   ├─ Sugerir: "Sin RAPIDAPI_KEY solo funciona Amadeus"
+   ├─ Preguntar: "¿Quieres configurar RapidAPI?" (si lo necesita)
+   
+   ES ACEPTABLE CONTINUAR sin RAPIDAPI_KEY
+
+
+PASO 4: REPORTE FINAL
+─────────────────────
+
+Para cada CATEGORÍA:
+
+SI TODO ARREGLADO:
+```
+✅ VERIFICACIÓN COMPLETA
+═══════════════════════════════════
+Problemas encontrados: 0
+Problemas solucionados: N
+Estado final: ✅ 100% FUNCIONAL
+
+Próxima tarea: [Esperar instrucciones]
+```
+
+SI REQUIERE AYUDA:
+```
+🆘 REPORTE DE PROBLEMAS
+═══════════════════════════════════
+Problemas encontrados: N
+Problemas solucionados: M
+
+⚠️  Bloqueadores (requieren tu ayuda):
+├─ Problema 1: [Descripción]
+│  └─ Intenté: [Solución intentada]
+├─ Problema 2: [Descripción]
+└─ Problema 3: [Descripción]
+
+¿Qué debo hacer?
+```
+
+
+═══════════════════════════════════════════════════════════════════════
+📋 MATRIZ DE DECISIÓN - QUÉ HACER ANTE CADA ERROR
+═══════════════════════════════════════════════════════════════════════
+
+ERROR: "9/9 imports OK" pero luego falla 1
+─────────────────────────────────────────────
+CAUSA PROBABLE: Error en tiempo de ejecución, no importación
+ACCIÓN: grep_search + read_file para encontrar línea
+SOLUCIÓN: Buscar y arreglar el typo/error de lógica
+
+ERROR: "5/5 configuraciones críticas OK" pero falta algo
+─────────────────────────────────────────────────────────
+CAUSA PROBABLE: Credencial incompleta o mal copiada
+ACCIÓN: Pedir al usuario: "¿Puedes verificar .env?"
+
+ERROR: "Fechas en tests son futuras" pero falla test_sistema.py
+──────────────────────────────────────────────────────────────
+CAUSA PROBABLE: Test_sistema.py tiene fecha hardcoded distinta
+ACCIÓN: grep_search("05-01-2026|05-03-2026|25-04-2026")
+        replacer con fecha actual futura
+
+ERROR: "Agregador cargado correctamente" pero retorna None
+──────────────────────────────────────────────────────────
+CAUSA PROBABLE: API endpoint devuelve 404 (FlyScraper, GoogleFlights)
+ACCIÓN: Normal si RapidAPI no tiene créditos
+        Informar: "Amadeus funciona, FlyScraper/Google devuelven 404"
+
+ERROR: "Base de datos FALLA"
+────────────────────────────
+CAUSA PROBABLE: data/vuelos.db corrupted
+ACCIÓN: ├─ Borrar data/vuelos.db
+        ├─ Ejecutar: python -c "from src.database import inicializar_bd; inicializar_bd()"
+        └─ Verificar con: python diagnostics.py
+
+ERROR: "PostgreSQL no disponible"
+─────────────────────────────────
+CAUSA: Normal - Render está caído o no configurado
+ACCIÓN: EXPECTED - SQLite se usa automáticamente
+        NO REQUIERE ACCIÓN DE USUARIO
+
+
+═══════════════════════════════════════════════════════════════════════
+🎯 TAREAS COMUNES Y CÓMO RESOLVERLAS
+═══════════════════════════════════════════════════════════════════════
+
+TAREA: "Verifica que todo funciona"
+──────────────────────────────────
+1. python diagnostics.py
+2. Si ✅: "Sistema OK"
+3. Si ⚠️: Seguir matriz de decisión arriba
+
+TAREA: "Inicia el sistema"
+──────────────────────────
+1. $env:PYTHONIOENCODING = 'utf-8'
+2. python run_combined.py
+3. Esperar a que bot se conecte
+4. Informar: "Bot activo, worker iniciado"
+
+TAREA: "Corre los tests"
+──────────────────────
+1. $env:PYTHONIOENCODING = 'utf-8'
+2. python test_sistema.py
+3. Verificar: 8/8 PASS
+4. Si falla: Usar matriz de decisión
+
+TAREA: "Actualiza las fechas de prueba"
+────────────────────────────────────────
+1. Calcular: fecha_futura = today + 25 days
+2. grep_search("05-01-2026|05-03-2026")
+3. read_file las líneas en: test_sistema.py, api_aggregator.py
+4. replace_string_in_file (todas instancias)
+5. python test_sistema.py (verificar)
+
+TAREA: "Agrega una nueva API al agregador"
+──────────────────────────────────────────
+1. Crear nueva clase APIProvider en src/api_aggregator.py
+2. Heredar de APIProvider base
+3. Implementar: search_flights(departure, arrival, date)
+4. Registrar en APIAggregator.__init__()
+5. python diagnostics.py (verificar)
+
+TAREA: "Diagnóstica el sistema completamente"
+─────────────────────────────────────────────
+python diagnostics.py
+(Esto lo hace TODO automáticamente)
+
+
+═══════════════════════════════════════════════════════════════════════
+🔒 RESTRICCIONES Y LÍMITES
+═══════════════════════════════════════════════════════════════════════
+
+NUNCA hacer sin permiso delUser:
+├─ Cambiar credenciales de APIs (Amadeus, Telegram, etc.)
+├─ Eliminar tablas de BD
+├─ Cambiar configuración de producción (.env)
+├─ Modificar estructura de BD sin migración
+└─ Deployar a Render automáticamente
+
+SÍ puedo hacer sin permiso:
+├─ Actualizar fechas de test
+├─ Arreglar bugs simples (typos)
+├─ Ejecutar diagnostics y tests
+├─ Crear nuevos archivos de log
+├─ Crear documentación
+└─ Sugerir cambios (pero ejecutar solo si usuario aprueba)
+
+PREGUNTAR SIEMPRE:
+├─ "¿Quieres que aggregate una nueva API?"
+├─ "¿Debo deployar a Render?"
+├─ "¿Debo cambiar [configuración crítica]?"
+└─ Cuando haya ambigüedad sobre qué hacer
+
+
+═══════════════════════════════════════════════════════════════════════
+📞 CÓMO PEDIR AYUDA AL USUARIO
+═══════════════════════════════════════════════════════════════════════
+
+FORMATO ESTANDARIZADO:
+════════════════════════
+
+🆘 AYUDA REQUERIDA - [CATEGORÍA]
+════════════════════════════════════
+
+PROBLEMA:
+─────────
+[Descripción clara de qué está mal]
+
+CONTEXTO:
+─────────
+• Archivo: [ruta]
+• Línea: [número] (si aplica)
+• Comando ejecutado: [qué corrí]
+• Salida: [error exacto]
+
+ANÁLISIS:
+─────────
+[Mi diagnóstico de qué está mal]
+
+INTENTOS:
+─────────
+✓ Intento 1: [Qué intenté]
+  └─ Resultado: [Fallóo/Funcionó parcialmente porque...]
+✓ Intento 2: [Qué intenté]
+  └─ Resultado: [Fallóo porque...]
+
+PREGUNTA:
+─────────
+¿Podrías... [qué necesito ayuda]?
+
+ESTADO:
+───────
+BLOQUEADO - No puedo continuar sin tu input
+
+
+═══════════════════════════════════════════════════════════════════════
+✅ CHECKLIST ANTES DE DECIR "TODO OK"
+═══════════════════════════════════════════════════════════════════════
+
+Antes de reportar que todo funciona, verificar:
+
+□ python diagnostics.py retorna 0 problemas
+□ 9/9 imports OK
+□ 5/5 configuraciones OK
+□ Base de datos funciona
+□ Fechas futuras
+□ 3/3 APIs configuradas
+□ Códigos IATA correctos
+□ Telegram ready
+□ python test_sistema.py retorna 8/8 PASS
+□ Archivos de log limpios (no hay errores)
+□ .env existe y está configurado (si es primera vez)
+
+Solo después de pasar TODO esto, reportar: "✅ Sistema 100% listy"
+
+
+═══════════════════════════════════════════════════════════════════════
+🚨 EMERGENCIAS - QUÉ HACER EN CASOS CRÍTICOS
+═══════════════════════════════════════════════════════════════════════
+
+EMERGENCIA: Bot no inicia
+─────────────────────────
+1. Verificar .env existe
+2. python -c "from src.config import *" (verificar imports)
+3. python -c "import telegram_bot" (verificar módulo)
+4. Si falta paquete: pip install python-telegram-bot
+
+SI SIGUE FALLANDO:
+└─ Reportar: "Bot no inicia - error en [X]. ¿Puedes revisar?"
+
+EMERGENCIA: Todos los tests fallen
+───────────────────────────────────
+1. python mcp_pylance_mcp_s_pylanceSyntaxErrors en test_sistema.py
+2. Verificar qué cambió desde última sesión
+3. Si no hay cambios: problema en dependencias
+
+SI SIGUE FALLANDO:
+└─ Reportar: "Sistema completamente broken. ¿Qué cambió?"
+
+EMERGENCIA: BD corrupta
+───────────────────────
+1. Borrar: data/vuelos.db
+2. Ejecutar: python -c "from src.database import inicializar_bd; inicializar_bd()"
+3. python diagnostics.py (verificar)
+
+SI SIGUE FALLANDO:
+└─ Reportar: "No puedo reinicializar BD. Error: [MENSAJE]"
+
+
+═══════════════════════════════════════════════════════════════════════
+📝 RESUMEN PARA ATAJOS
+═══════════════════════════════════════════════════════════════════════
+
+Comando Rápido (5 segundos):
+────────────────────────────
+python diagnostics.py
+→ Si ✅: Sistema OK
+→ Si ⚠️: Ver matriz de decisión
+
+Verificación Completa (30 segundos):
+──────────────────────────────────────
+1. python diagnostics.py
+2. python test_sistema.py
+3. Si ambos ✅: Sistema 100% funcional
+
+Troubleshooting Nivel 3 (5 minutos):
+─────────────────────────────────────
+1. python diagnostics.py (ver qué falla)
+2. grep_search / read_file ( encontrar donde)
+3. Intentar fix simple
+4. python diagnostics.py (verificar)
+5. Si sigue fallando: reportar con matriz
+
+
+═══════════════════════════════════════════════════════════════════════
+EL ASISTENTE DEBE RECORDAR:
+═══════════════════════════════════════════════════════════════════════
+
+"El usuario quiere autonomía y confiabilidad. Si puedo arreglar algo,
+lo arreglo. Si no puedo, le digo exactamente qué falta.
+
+Reporte siempre conciso:
+✅ - Qué funcionó
+✗ - Qué falló
+❌ - Qué necesita su ayuda
+
+Nunca dejas el proyecto en estado unknown.
+Siempre reportas estado final claro."
+
+═══════════════════════════════════════════════════════════════════════

@@ -1,506 +1,434 @@
 """
-database.py - Módulo de gestión de base de datos SQLite
+database.py - Gestión de Base de Datos (PostgreSQL + SQLite local)
 
 CONCEPTO EDUCATIVO:
-Una base de datos es esencial para:
-- Persistencia: guardar datos que sobrevivan al cierre del programa
-- Análisis: comparar precios históricos
-- Deduplicación: no enviar alertas duplicadas
-
-Tablas que crearemos:
-1. watched_flights: vuelos que el usuario quiere monitorear
-2. price_history: historial de precios para cada vuelo
-3. alerts_sent: registro de alertas enviadas (para no repetir)
+- SQLAlchemy: ORM (Object-Relational Mapping)
+  Permite trabajar con BD usando clases Python en lugar de SQL puro
+  Beneficio: Código más limpio, portable (funciona con PostgreSQL, SQLite, MySQL)
+  
+- Modelos: Clases que representan tablas
+  Ej: class Ruta() = tabla 'rutas' en la BD
 """
 
-import sqlite3
-from pathlib import Path
+import os
 from datetime import datetime
-from typing import List, Dict, Tuple, Optional
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, func
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from src.config import DATABASE_URL
 from src.logger import logger
-from src.config import DB_PATH
+
+# Base para todas las clases de modelos
+Base = declarative_base()
 
 
-class Database:
+
+# ==================== MODELOS (TABLAS) ====================
+
+class Ruta(Base):
     """
-    Clase para manejar todas las operaciones con la base de datos
+    Tabla: rutas
     
-    CONCEPTO EDUCATIVO - Context Manager:
-    Usamos 'with' para asegurar que la conexión se cierre correctamente,
-    incluso si hay un error. Es una BEST PRACTICE en Python.
+    Almacena los vuelos que el usuario quiere monitorear
+    Ejemplo:
+        Madrid (MAD) → Nueva York (JFK)
+        Desde: 2025-06-01
+        Hasta: 2025-12-31
     """
+    __tablename__ = 'rutas'
     
-    def __init__(self, db_path: str = DB_PATH):
-        """Inicializar conexión a la base de datos"""
-        self.db_path = db_path
-        self._ensure_db_exists()
-        logger.info(f"✅ Base de datos inicializada: {self.db_path}")
+    id = Column(Integer, primary_key=True)
+    origen = Column(String(3), nullable=False)  # Código IATA (MAD, BCN, etc)
+    destino = Column(String(3), nullable=False)
+    fecha_inicio = Column(DateTime, nullable=False)  # Desde qué fecha buscar
+    fecha_fin = Column(DateTime, nullable=False)  # Hasta cuándo buscar
     
-    def _ensure_db_exists(self):
-        """Crear base de datos y tablas si no existen"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Tabla 1: Vuelos monitoreados por el usuario
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS watched_flights (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        origin TEXT NOT NULL,
-                        destination TEXT NOT NULL,
-                        departure_date TEXT NOT NULL,
-                        date_range_start TEXT,
-                        date_range_end TEXT,
-                        min_price REAL NOT NULL,
-                        price_reduction_percent REAL NOT NULL,
-                        is_active BOOLEAN DEFAULT 1,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE(origin, destination, departure_date)
-                    )
-                """)
-                
-                # Tabla 2: Historial de precios
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS price_history (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        flight_id INTEGER NOT NULL,
-                        price REAL NOT NULL,
-                        currency TEXT DEFAULT 'EUR',
-                        airline TEXT,
-                        flight_number TEXT,
-                        check_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (flight_id) REFERENCES watched_flights(id)
-                    )
-                """)
-                
-                # Tabla 3: Alertas enviadas (para evitar duplicados)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS alerts_sent (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        flight_id INTEGER NOT NULL,
-                        alert_type TEXT NOT NULL,
-                        price REAL NOT NULL,
-                        message TEXT,
-                        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (flight_id) REFERENCES watched_flights(id)
-                    )
-                """)
-                
-                conn.commit()
-                logger.debug("✅ Tablas de base de datos verificadas/creadas")
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error al crear base de datos: {e}")
-            raise
+    # Vuelo de regreso
+    es_ida_vuelta = Column(Boolean, default=False)
+    dias_regreso_min = Column(Integer, nullable=True)  # Ej: 10 días mínimo
+    dias_regreso_max = Column(Integer, nullable=True)  # Ej: 20 días máximo
     
-    # ==================== OPERACIONES VUELOS MONITOREADOS ====================
+    # Alertas
+    precio_minimo_alerta = Column(Float, default=50.0)  # Alerta si baja de esto
+    porcentaje_rebaja_alerta = Column(Float, default=15.0)  # Alerta si baja 15% vs media
     
-    def add_watched_flight(self, 
-                          origin: str, 
-                          destination: str, 
-                          departure_date: str,
-                          min_price: float = 50.0,
-                          price_reduction_percent: float = 15.0,
-                          date_range_start: str = None,
-                          date_range_end: str = None) -> bool:
-        """
-        Agregar un vuelo a monitorear
-        
-        CONCEPTO EDUCATIVO - Flexibilidad de fechas:
-        Antes: solo soportaba una fecha exacta
-        Ahora: también soporta rangos de fechas
-        
-        Args:
-            origin: Código IATA origen
-            destination: Código IATA destino
-            departure_date: Fecha de salida (DD-MM-YYYY) - mejor fecha del rango
-            date_range_start: Inicio del rango (DD-MM-YYYY) - opcional
-            date_range_end: Fin del rango (DD-MM-YYYY) - opcional
-            min_price: Precio mínimo absoluto (€)
-            price_reduction_percent: Porcentaje de reducción para alerta (%)
-        
-        Returns:
-            bool: True si se agregó correctamente
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO watched_flights 
-                    (origin, destination, departure_date, date_range_start, date_range_end, 
-                     min_price, price_reduction_percent)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (origin.upper(), destination.upper(), departure_date, 
-                      date_range_start, date_range_end, min_price, price_reduction_percent))
-                
-                conn.commit()
-                
-                if date_range_start and date_range_end:
-                    logger.info(f"✅ Vuelo agregado: {origin} → {destination} "
-                               f"({date_range_start} a {date_range_end})")
-                else:
-                    logger.info(f"✅ Vuelo agregado: {origin} → {destination} ({departure_date})")
-                return True
-        
-        except sqlite3.IntegrityError:
-            logger.warning(f"⚠️ El vuelo {origin}→{destination} ({departure_date}) ya está en monitoreo")
-            return False
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error agregando vuelo: {e}")
-            return False
+    # Metadatos
+    activo = Column(Boolean, default=True)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    ultima_busqueda = Column(DateTime, nullable=True)
     
-    def get_all_watched_flights(self) -> List[Dict]:
-        """Obtener todos los vuelos activos monitoreados"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id, origin, destination, departure_date, date_range_start, date_range_end,
-                           min_price, price_reduction_percent, created_at
-                    FROM watched_flights
-                    WHERE is_active = 1
-                    ORDER BY departure_date ASC
-                """)
-                
-                columns = [col[0] for col in cursor.description]
-                return [dict(zip(columns, row)) for row in cursor.fetchall()]
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error obteniendo vuelos: {e}")
-            return []
+    def __repr__(self):
+        return f"<Ruta {self.origen}→{self.destino} ({self.fecha_inicio.strftime('%Y-%m-%d')})"
+
+
+class PrecioHistorico(Base):
+    """
+    Tabla: precios_historicos
     
-    def get_watched_flight(self, flight_id: int) -> Optional[Dict]:
-        """Obtener información de un vuelo específico"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id, origin, destination, departure_date, date_range_start, date_range_end,
-                           min_price, price_reduction_percent, created_at
-                    FROM watched_flights
-                    WHERE id = ?
-                """, (flight_id,))
-                
-                row = cursor.fetchone()
-                if row:
-                    columns = [col[0] for col in cursor.description]
-                    return dict(zip(columns, row))
-                return None
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error obteniendo vuelo: {e}")
-            return None
+    Registro de TODOS los precios encontrados en cada búsqueda
+    Esto permite calcular la media histórica y detectar bajadas
+    """
+    __tablename__ = 'precios_historicos'
     
-    def deactivate_watched_flight(self, flight_id: int) -> bool:
-        """Desactivar el monitoreo de un vuelo"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE watched_flights
-                    SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (flight_id,))
-                
-                conn.commit()
-                logger.info(f"✅ Vuelo desactivado (ID: {flight_id})")
-                return True
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error desactivando vuelo: {e}")
-            return False
+    id = Column(Integer, primary_key=True)
+    ruta_id = Column(Integer, nullable=False)  # Foreign key a tabla 'rutas'
     
-    # ==================== OPERACIONES HISTORIAL DE PRECIOS ====================
+    # Vuelo
+    origen = Column(String(3), nullable=False)
+    destino = Column(String(3), nullable=False)
+    fecha_vuelo = Column(DateTime, nullable=False)  # Fecha del vuelo (ida o vuelta)
+    tipo_vuelo = Column(String(10), default='ida')  # 'ida' o 'vuelta'
     
-    def add_price_record(self, 
-                        flight_id: int, 
-                        price: float, 
-                        currency: str = 'EUR',
-                        airline: str = None,
-                        flight_number: str = None) -> bool:
-        """
-        Guardar un registro de precio para un vuelo
-        
-        CONCEPTO EDUCATIVO:
-        Cada búsqueda crea un nuevo registro de precio. De esta forma
-        tenemos un historial que podemos analizaripara ver tendencias.
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO price_history 
-                    (flight_id, price, currency, airline, flight_number)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (flight_id, price, currency, airline, flight_number))
-                
-                conn.commit()
-                return True
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error guardando precio: {e}")
-            return False
+    # Precio encontrado
+    precio = Column(Float, nullable=False)
+    moneda = Column(String(3), default='EUR')
     
-    def get_price_history(self, flight_id: int, days: int = 7) -> List[Dict]:
-        """
-        Obtener historial de precios de los últimos N días
-        
-        Args:
-            flight_id: ID del vuelo monitoreado
-            days: Número de días hacia atrás
-        
-        Returns:
-            Lista de registros de precios
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id, price, currency, airline, flight_number, check_date
-                    FROM price_history
-                    WHERE flight_id = ? AND check_date >= datetime('now', '-' || ? || ' days')
-                    ORDER BY check_date DESC
-                """, (flight_id, days))
-                
-                columns = [col[0] for col in cursor.description]
-                return [dict(zip(columns, row)) for row in cursor.fetchall()]
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error obteniendo historial: {e}")
-            return []
+    # Aerolínea
+    aerolinea = Column(String(100), nullable=True)
+    escalas = Column(Integer, nullable=True)  # 0=directo, 1=1 escala, etc
+    duracion = Column(Integer, nullable=True)  # Minutos de vuelo
     
-    def get_average_price(self, flight_id: int, days: int = 7) -> Optional[float]:
-        """Calcular precio promedio de los últimos N días"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT AVG(price) as avg_price
-                    FROM price_history
-                    WHERE flight_id = ? AND check_date >= datetime('now', '-' || ? || ' days')
-                """, (flight_id, days))
-                
-                result = cursor.fetchone()
-                return result[0] if result and result[0] else None
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error calculando promedio: {e}")
-            return None
+    # API que lo encontró
+    fuente = Column(String(50))  # 'amadeus', 'kiwi', etc
     
-    def get_min_price(self, flight_id: int, days: int = 7) -> Optional[float]:
-        """Obtener precio mínimo de los últimos N días"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT MIN(price) as min_price
-                    FROM price_history
-                    WHERE flight_id = ? AND check_date >= datetime('now', '-' || ? || ' days')
-                """, (flight_id, days))
-                
-                result = cursor.fetchone()
-                return result[0] if result and result[0] else None
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error obteniendo mínimo: {e}")
-            return None
+    # Timestamp
+    fecha_busqueda = Column(DateTime, default=datetime.utcnow)
     
-    # ==================== OPERACIONES ALERTAS ====================
+    def __repr__(self):
+        return f"<Precio {self.origen}→{self.destino} {self.fecha_vuelo.date()}: {self.precio}€>"
+
+
+class Alerta(Base):
+    """
+    Tabla: alertas
     
-    def record_alert_sent(self, 
-                         flight_id: int, 
-                         alert_type: str,
-                         price: float,
-                         message: str = None) -> bool:
-        """
-        Registrar que se envió una alerta
-        
-        CONCEPTO EDUCATIVO - Deduplicación:
-        Si guardamos cuando enviamos una alerta, podemos verificar
-        si ya enviamos una similar recientemente para no spamear.
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO alerts_sent 
-                    (flight_id, alert_type, price, message)
-                    VALUES (?, ?, ?, ?)
-                """, (flight_id, alert_type, price, message))
-                
-                conn.commit()
-                logger.debug(f"✅ Alerta registrada (ID: {flight_id}, tipo: {alert_type})")
-                return True
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error registrando alerta: {e}")
-            return False
+    Registro de alertas GENERADAS (para no enviar la misma alerta 2 veces)
+    Y para análisis histórico
+    """
+    __tablename__ = 'alertas'
     
-    def check_recent_alert(self, flight_id: int, alert_type: str, hours: int = 24) -> bool:
-        """
-        Verificar si ya enviamos una alerta similar en las últimas N horas
-        
-        CONCEPTO EDUCATIVO - Rate Limiting:
-        Evita enviar alertas duplicadas si el precio baja 1€ cada hora.
-        Con esto, máximo 1 alerta por tipo de vuelo cada 24 horas.
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT COUNT(*) as count
-                    FROM alerts_sent
-                    WHERE flight_id = ? AND alert_type = ? 
-                    AND sent_at >= datetime('now', '-' || ? || ' hours')
-                """, (flight_id, alert_type, hours))
-                
-                result = cursor.fetchone()
-                return result[0] > 0 if result else False
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error verificando alerta: {e}")
-            return False
+    id = Column(Integer, primary_key=True)
+    ruta_id = Column(Integer, nullable=False)
     
-    def get_alerts_history(self, flight_id: int = None, days: int = 30) -> List[Dict]:
-        """Obtener historial de alertas enviadas"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                if flight_id:
-                    cursor.execute("""
-                        SELECT id, flight_id, alert_type, price, message, sent_at
-                        FROM alerts_sent
-                        WHERE flight_id = ? AND sent_at >= datetime('now', '-' || ? || ' days')
-                        ORDER BY sent_at DESC
-                    """, (flight_id, days))
-                else:
-                    cursor.execute("""
-                        SELECT id, flight_id, alert_type, price, message, sent_at
-                        FROM alerts_sent
-                        WHERE sent_at >= datetime('now', '-' || ? || ' days')
-                        ORDER BY sent_at DESC
-                    """, (days,))
-                
-                columns = [col[0] for col in cursor.description]
-                return [dict(zip(columns, row)) for row in cursor.fetchall()]
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error obteniendo alertas: {e}")
-            return []
+    # Tipo de alerta
+    tipo = Column(String(50))  # 'precio_bajo', 'rebaja_vs_media', 'mejor_precio'
     
-    # ==================== UTILIDADES ====================
+    # Detalles
+    mensaje = Column(Text)  # Mensaje a enviar por Telegram
+    precio_actual = Column(Float)
+    precio_anterior = Column(Float, nullable=True)
+    media_historica = Column(Float, nullable=True)
     
-    def get_statistics(self) -> Dict:
-        """Obtener estadísticas globales de la base de datos"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Contar vuelos monitoreados
-                cursor.execute("SELECT COUNT(*) FROM watched_flights WHERE is_active = 1")
-                active_flights = cursor.fetchone()[0]
-                
-                # Contar registros de precios
-                cursor.execute("SELECT COUNT(*) FROM price_history")
-                price_records = cursor.fetchone()[0]
-                
-                # Contar alertas enviadas
-                cursor.execute("SELECT COUNT(*) FROM alerts_sent")
-                alerts_sent = cursor.fetchone()[0]
-                
-                return {
-                    'active_flights': active_flights,
-                    'price_records': price_records,
-                    'alerts_sent': alerts_sent
-                }
-        
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error obteniendo estadísticas: {e}")
-            return {}
+    # Estado
+    enviado = Column(Boolean, default=False)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_envio = Column(DateTime, nullable=True)
     
-    def clear_old_data(self, days: int = 90) -> int:
-        """
-        Limpiar datos antiguos (más de N días) para mantener BD limpia
+    def __repr__(self):
+        return f"<Alerta {self.tipo}: {self.mensaje}>"
+
+
+# ==================== DATABASE ENGINE ====================
+
+def crear_engine():
+    """
+    Crea la conexión a PostgreSQL en Render
+    Si falla (ej: no hay conexión a internet), usa SQLite local como fallback
+    """
+    try:
+        logger.info(f"📡 Intentando conectar a PostgreSQL remoto...")
+        engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
         
-        CONCEPTO EDUCATIVO - Mantenimiento:
-        Las bases de datos pueden crecer demasiado. Limpiar datos antiguos
-        es una buena práctica para mantener rendimiento.
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Eliminar registros de precios antiguos
-                cursor.execute("""
-                    DELETE FROM price_history
-                    WHERE check_date < datetime('now', '-' || ? || ' days')
-                """, (days,))
-                
-                deleted_rows = cursor.rowcount
-                conn.commit()
-                
-                logger.info(f"🧹 Se eliminaron {deleted_rows} registros de precios antiguos")
-                return deleted_rows
+        # Test de conexión
+        with engine.connect() as conn:
+            conn.execute("SELECT 1")
+            logger.info("✅ PostgreSQL remoto CONECTADO")
         
-        except sqlite3.Error as e:
-            logger.error(f"❌ Error limpiando datos: {e}")
-            return 0
+        return engine
+    
+    except Exception as e:
+        logger.warning(f"⚠️  No se pudo conectar a PostgreSQL: {e}")
+        logger.warning("📦 Usando SQLite local como fallback...")
+        
+        # Fallback a SQLite
+        sqlite_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'vuelos.db')
+        engine = create_engine(f'sqlite:///{sqlite_path}', echo=False)
+        logger.info(f"✅ SQLite iniciado: {sqlite_path}")
+        
+        return engine
+
+
+# Crear engine
+engine = crear_engine()
+
+# Session factory para ejecutar queries
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+
+
+# ==================== MIGRACIONES ====================
+
+def aplicar_migraciones():
+    """
+    Aplica todas las migraciones de BD pendientes
+    (Agregar nuevas columnas a tablas existentes, etc)
+    """
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text, inspect
+        
+        # Inspeccionar estructura actual
+        inspector = inspect(engine)
+        
+        # Migración 1: Agregar columna 'duracion' a precios_historicos
+        tabla_columns = [col['name'] for col in inspector.get_columns('precios_historicos')]
+        
+        if 'duracion' not in tabla_columns:
+            logger.info("🔧 Migrando: Agregando columna 'duracion' a precios_historicos...")
+            try:
+                if 'postgresql' in str(engine.url):
+                    db.execute(text("ALTER TABLE precios_historicos ADD COLUMN duracion INTEGER"))
+                else:  # SQLite
+                    db.execute(text("ALTER TABLE precios_historicos ADD COLUMN duracion INTEGER"))
+                db.commit()
+                logger.info("✅ Migración completada: Columna 'duracion' agregada")
+            except Exception as e:
+                logger.warning(f"⚠️ Migración no necesaria: {str(e)[:60]}")
+                db.rollback()
+    except Exception as e:
+        logger.warning(f"⚠️ Error al aplicar migraciones: {str(e)[:60]}")
+    finally:
+        db.close()
+
+
+def inicializar_bd():
+    """
+    Crea todas las tablas en la BD si no existen
+    Ejecutar al inicio del programa
+    """
+    logger.info("🔧 Inicializando base de datos...")
+    Base.metadata.create_all(engine)
+    logger.info("✅ Tablas creadas/verificadas")
+    
+    # Aplicar migraciones
+    aplicar_migraciones()
+
+
+def obtener_sesion() -> Session:
+    """
+    Context manager para obtener una sesión de BD
+    
+    USO:
+    with obtener_sesion() as db:
+        rutas = db.query(Ruta).all()
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# ==================== FUNCIONES BÁSICAS DE BD ====================
+
+def crear_ruta(origen: str, destino: str, fecha_inicio, fecha_fin, 
+               es_ida_vuelta=False, dias_regreso_min=None, dias_regreso_max=None,
+               porcentaje_rebaja=15.0, precio_min_automatico: bool = True) -> Ruta:
+    """
+    Crear una nueva ruta a monitorear
+    
+    CONCEPTO EDUCATIVO - Cálculo Automático:
+    Si precio_min_automatico=True, el precio mínimo se calcula basado en:
+    - Media histórica de precios para esa ruta
+    - Porcentaje de rebaja deseado
+    
+    Ej: Si media es 500€ y rebaja es 20%, alerta cuando baje de 400€
+    
+    Args:
+        origen, destino: Códigos IATA (MAD, NYC, etc)
+        fecha_inicio, fecha_fin: Rango de búsqueda
+        es_ida_vuelta: ¿Incluir vuelo de regreso?
+        dias_regreso_min/max: Rango de días para el regreso
+        porcentaje_rebaja: Porcentaje de descuento para alerta (%)
+        precio_min_automatico: Si True, calcula automáticamente el precio mínimo
+    
+    Ejemplo:
+    >>> crear_ruta('MAD', 'NYC', datetime(2025,6,1), datetime(2025,12,31), 
+    ...           es_ida_vuelta=True, dias_regreso_min=10, dias_regreso_max=20,
+    ...           porcentaje_rebaja=20.0)
+    """
+    db = SessionLocal()
+    try:
+        # Crear la ruta primero (sin precio mínimo)
+        ruta = Ruta(
+            origen=origen.upper(),
+            destino=destino.upper(),
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            es_ida_vuelta=es_ida_vuelta,
+            dias_regreso_min=dias_regreso_min,
+            dias_regreso_max=dias_regreso_max,
+            porcentaje_rebaja_alerta=porcentaje_rebaja,
+            precio_minimo_alerta=50.0  # Valor temporal
+        )
+        
+        db.add(ruta)
+        db.commit()  # Necesario para obtener el ID
+        
+        ruta_id = ruta.id
+        
+        # Ahora calcular el precio mínimo automáticamente
+        if precio_min_automatico:
+            from src.alert_calculator import CalculadorAlertasInteligentes
+            
+            precio_calculado = CalculadorAlertasInteligentes.calcular_precio_minimo_automatico(
+                ruta_id=ruta_id,
+                porcentaje_rebaja=porcentaje_rebaja,
+                dias_historial=60
+            )
+            
+            ruta.precio_minimo_alerta = precio_calculado
+            db.commit()
+            
+            logger.info(f"✅ Ruta creada: {origen}→{destino}")
+            logger.info(f"   Precio mínimo (calculado automáticamente): {precio_calculado}€")
+        else:
+            logger.info(f"✅ Ruta creada: {origen}→{destino}")
+            logger.info(f"   Precio mínimo (fijo): {ruta.precio_minimo_alerta}€")
+        
+        return ruta
+    
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error al crear ruta: {e}")
+        raise
+    finally:
+        db.close()
+
+
+def guardar_precio(ruta_id: int, origen: str, destino: str, fecha_vuelo,
+                   precio: float, aerolinea: str, escalas: int, fuente: str,
+                   tipo_vuelo: str = 'ida', duracion: int = None):
+    """Guardar un precio en el historial"""
+    db = SessionLocal()
+    try:
+        registro = PrecioHistorico(
+            ruta_id=ruta_id,
+            origen=origen.upper(),
+            destino=destino.upper(),
+            fecha_vuelo=fecha_vuelo,
+            tipo_vuelo=tipo_vuelo,
+            precio=precio,
+            aerolinea=aerolinea,
+            escalas=escalas,
+            duracion=duracion,
+            fuente=fuente
+        )
+        db.add(registro)
+        db.commit()
+        logger.debug(f"💾 Precio guardado: {precio}€")
+        return registro
+    
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error al guardar precio: {e}")
+        raise
+    finally:
+        db.close()
+
+
+def obtener_rutas_activas():
+    """Obtener todas las rutas que están siendo monitoreadas"""
+    db = SessionLocal()
+    try:
+        rutas = db.query(Ruta).filter(Ruta.activo == True).all()
+        return rutas
+    finally:
+        db.close()
+
+
+def obtener_media_precio(ruta_id: int, dias_historial: int = 30) -> float:
+    """
+    Calcular el precio MEDIO de los últimos N días
+    Se usa para detectar bajadas vs "normal"
+    """
+    db = SessionLocal()
+    try:
+        from datetime import timedelta
+        
+        fecha_limite = datetime.utcnow() - timedelta(days=dias_historial)
+        
+        media = db.query(func.avg(PrecioHistorico.precio)).filter(
+            PrecioHistorico.ruta_id == ruta_id,
+            PrecioHistorico.fecha_busqueda >= fecha_limite
+        ).scalar()
+        
+        return float(media) if media else 0.0
+    finally:
+        db.close()
+
+
+def obtener_ultimas_busquedas(ruta_id: int, limite: int = 10):
+    """
+    Obtener los últimos N registros de búsqueda (precios encontrados)
+    
+    Args:
+        ruta_id: ID de la ruta
+        limite: Cuántos resultados retornar (default: 10)
+    
+    Returns:
+        Lista de PrecioHistorico ordenados por fecha descendente
+    """
+    db = SessionLocal()
+    try:
+        registros = db.query(PrecioHistorico).filter(
+            PrecioHistorico.ruta_id == ruta_id
+        ).order_by(
+            PrecioHistorico.fecha_busqueda.desc()
+        ).limit(limite).all()
+        
+        return registros
+    finally:
+        db.close()
+
+
+def registrar_busqueda(ruta_id: int, origen: str, destino: str, fecha_vuelo,
+                       precio: float, aerolinea: str = None, escalas: int = 0,
+                       fuente: str = "manual", tipo_vuelo: str = 'ida',
+                       duracion: int = None) -> PrecioHistorico:
+    """
+    Registrar una búsqueda/vuelo encontrado en el histórico de precios
+    ALIAS para guardar_precio() con un nombre más descriptivo
+    
+    Args:
+        ruta_id: ID de la ruta
+        origen: Código IATA
+        destino: Código IATA
+        fecha_vuelo: Fecha del vuelo
+        precio: Precio en EUR
+        aerolinea: Nombre de aerolínea (opcional)
+        escalas: Número de escalas
+        fuente: Origen del dato (ej: "Amadeus", "FlyScraper", "GoogleFlights")
+        tipo_vuelo: 'ida' o 'vuelta'
+        duracion: Duración en minutos
+    
+    Returns:
+        PrecioHistorico: El registro creado
+    """
+    return guardar_precio(
+        ruta_id=ruta_id,
+        origen=origen,
+        destino=destino,
+        fecha_vuelo=fecha_vuelo,
+        precio=precio,
+        aerolinea=aerolinea or "Unknown",
+        escalas=escalas,
+        fuente=fuente,
+        tipo_vuelo=tipo_vuelo,
+        duracion=duracion
+    )
 
 
 if __name__ == "__main__":
-    # Ejemplo de uso (solo para testing)
-    try:
-        db = Database()
-        
-        logger.info("🧪 Ejecutando pruebas de base de datos...")
-        
-        # 1. Agregar un vuelo monitoreado
-        logger.info("\n📝 Test 1: Agregar vuelo monitoreado")
-        db.add_watched_flight(
-            origin="MAD",
-            destination="CDG",
-            departure_date="25-02-2025",
-            min_price=50.0,
-            price_reduction_percent=15.0
-        )
-        
-        # 2. Obtener vuelos monitoreados
-        logger.info("\n📋 Test 2: Obtener vuelos monitoreados")
-        flights = db.get_all_watched_flights()
-        for flight in flights:
-            logger.info(f"   {flight['origin']} → {flight['destination']} ({flight['departure_date']})")
-        
-        # 3. Agregar registros de precio
-        logger.info("\n💰 Test 3: Agregar registros de precio")
-        if flights:
-            flight_id = flights[0]['id']
-            db.add_price_record(flight_id, 89.50, airline="IB", flight_number="6845")
-            db.add_price_record(flight_id, 87.00, airline="AF", flight_number="1234")
-        
-        # 4. Obtener historial de precios
-        logger.info("\n📊 Test 4: Historial de precios")
-        history = db.get_price_history(flight_id)
-        logger.info(f"   Registros encontrados: {len(history)}")
-        
-        # 5. Calcular promedio y mínimo
-        logger.info("\n📈 Test 5: Cálculos estadísticos")
-        avg = db.get_average_price(flight_id)
-        min_price = db.get_min_price(flight_id)
-        logger.info(f"   Precio promedio: {avg}€")
-        logger.info(f"   Precio mínimo: {min_price}€")
-        
-        # 6. Registrar alerta
-        logger.info("\n🔔 Test 6: Registrar alerta")
-        db.record_alert_sent(flight_id, "price_below_threshold", 45.00, "¡Precio muy bajo!")
-        
-        # 7. Estadísticas
-        logger.info("\n📊 Test 7: Estadísticas globales")
-        stats = db.get_statistics()
-        logger.info(f"   Vuelos activos: {stats['active_flights']}")
-        logger.info(f"   Registros de precios: {stats['price_records']}")
-        logger.info(f"   Alertas enviadas: {stats['alerts_sent']}")
-    
-    except Exception as e:
-        logger.error(f"❌ Error en pruebas: {e}")
+    # Ejecutar este archivo para inicializar la BD
+    inicializar_bd()
+    print("✅ Base de datos inicializada")

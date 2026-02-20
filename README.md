@@ -20,109 +20,117 @@ Un **rastreador automático de vuelos** que monitorea precios en Amadeus y **env
 
 ## 🚀 INICIO RÁPIDO (Local)
 
-### 1. Clonar / Descargar
-
-```bash
-cd Rastreador
-```
-
-### 2. Crear entorno virtual
-
-```bash
-python -m venv venv
-.\venv\Scripts\Activate.ps1  # Windows PowerShell
-source venv/bin/activate      # macOS/Linux
-```
-
-### 3. Instalar dependencias
+### 1. Instalar dependencias
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configurar variables de entorno
+### 2. Configurar .env
 
 ```bash
-# Copiar plantilla
-copy .env.example .env
-
-# Editar con tus credenciales
-notepad .env
+# Editar .env con tus credenciales
+AMADEUS_CLIENT_ID=tu_id
+AMADEUS_CLIENT_SECRET=tu_secret
+TELEGRAM_BOT_TOKEN=tu_token
+TELEGRAM_CHAT_ID=tu_chat_id
+DATABASE_URL=postgresql://... (opcional)
 ```
 
-Necesitas obtener:
-- **Amadeus:** https://developers.amadeus.com
-- **Telegram Bot:** @BotFather en Telegram
+### 3. Abrir 2 terminales simultáneamente
 
-### 5. Probar que funciona
+**Terminal 1 - Bot de Telegram (escucha mensajes):**
+```bash
+python run_telegram_bot.py
+```
+
+**Terminal 2 - Buscador Automático (busca cada 5 horas):**
+```bash
+python run_search_worker.py
+```
+
+### 4. Usar en Telegram
+
+```
+/start  → Ver menú
+/agregar → Agregar nueva ruta (conversación interactiva)
+/listar → Ver rutas monitoreadas
+/buscar → Buscar vuelos AHORA
+/ayuda → Ver comandos
+```
+
+### 5. Ejemplo: Agregar Primera Ruta
+
+```
+Tu: /agregar
+Bot: ¿De dónde deseas viajar?
+Tu: Madrid
+Bot: ¿A dónde deseas viajar?
+Tu: Nueva York
+Bot: ¿Desde qué fecha? (DD-MM-YYYY)
+Tu: 01-06-2026
+Bot: ¿Hasta qué fecha? (DD-MM-YYYY)
+Tu: 30-07-2026
+Bot: ¿Vuelo de regreso?
+Tu: SÍ (pulsa botón)
+Bot: ¿Cuántos días después? (MIN-MAX)
+Tu: 7-14
+Bot: ¿Porcentaje de rebaja para alerta?
+Tu: 20
+
+✅ Ruta creada y monitoreada automáticamente!
+```
+
+### 6. ¿Cómo funciona?
+
+- **Terminal 1**: Escucha a Telegram y responde comandos
+- **Terminal 2**: Busca cada 5 horas automáticamente
+  - Guarda precios en BD
+  - Detecta ofertas (20% menos que promedio)
+  - Te notifica por Telegram
+
+---
+
+## 🧪 Verifica que Todo Funciona
 
 ```bash
-# Probar módulo API
-python -m src.api
-
-# Probar BD
-python -m src.database
-
-# Probar notificaciones
-python -m src.notifications
-
-# Ejecutar un check único
-python main.py --mode test
+python test_sistema.py
 ```
 
-### 6. Agregar vuelos a monitorear
-
-```bash
-python manage_flights.py
-```
-
-**Opción interactiva:**
-```
-1. Ver vuelos monitoreados
-2. Agregar nuevo vuelo
-3. Modificar parámetros
-4. Eliminar vuelo
-...
-```
-
-### 7. Ejecutar el tracker
-
-```bash
-# Modo desarrollo (1 check y termina)
-set DEBUG=True
-python main.py
-
-# Modo producci​ón (24/7)
-set DEBUG=False
-python main.py
-```
-
-**Output esperado:**
-```
-[INFO] 🚀 FLIGHT TRACKER INICIADO
-[INFO] 🔄 CHECK #1
-[INFO] ✅ 1 vuelo(s) a revisar
-[INFO] 🔍 Buscando: MAD → CDG (25-02-2025)
-[INFO] ✅ MAD→CDG: 89.50€ (IB)
-[INFO] 🚨 No hay alertas en este momento
-[INFO] ✅ Check completado exitosamente
-```
+Esto verificar​á:
+- ✅ Variables de entorno configuradas
+- ✅ Conexión a Amadeus API
+- ✅ Conexión a Telegram
+- ✅ Base de datos funciona
+- ✅ Traducción ciudad→IATA
+- ✅ Crear rutas es posible
 
 ---
 
 ## 📱 GESTIONAR VUELOS
 
+### Vía Telegram (Recomendado - TODO lo necesario)
+
+```
+/agregar        → Agregar nueva ruta a monitorear
+/listar         → Ver todas las rutas activas
+/buscar         → Buscar vuelos AHORA (no esperar 5 horas)
+/estadisticas   → Ver precios históricos y estadísticas
+```
+
+### Vía CLI (Alternativa - Si prefieres terminal)
+
 ```bash
 python manage_flights.py
 ```
 
-### Opciones:
-1. **Ver vuelos monitoreados** → Lista todos
-2. **Agregar nuevo vuelo** → Ruta + fecha + precios
-3. **Modificar parámetros** → Cambiar umbrales
-4. **Eliminar vuelo** → Dejar de monitorear
-5. **Ver historial de precios** → Últimos 30 días
-6. **Ver estadísticas** → Resumen global
+Opciones en el menú:
+1. Ver vuelos monitoreados
+2. Agregar nuevo vuelo
+3. Modificar parámetros (umbral, porcentaje)
+4. Eliminar vuelo
+5. Ver historial de precios
+6. Ver estadísticas
 
 ---
 
@@ -156,30 +164,61 @@ Ver [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) para comparativa Railway, Google 
 
 ## 📊 CÓMO FUNCIONA
 
-### Flujo de ejecución:
+### Nuevo Flujo (Sesión 8):
 
 ```
-SCHEDULER (cada 2 horas)
+USUARIO (Telegram)
   │
-  ├─→ API: Buscar vuelos en Amadeus
-  │    └─→ BD: Guardar precios
+  ├─ /agregar → Conversación multi-paso
+  │   └─ Crear ruta: origen, destino, fechas, rebaja%
   │
-  ├─→ ALERTS: Detectar oportunidades
-  │    ├─ Precio < umbral mínimo?
-  │    └─ Precio 15% menos que promedio?
+  ├─ /buscar → Buscar AHORA
+  │   └─ Resultados inmediatos
   │
-  └─→ NOTIFICATIONS: Enviar por Telegram
-       └─→ BD: Registrar que se envió
+  └─ /listar → Ver rutas activas
+  
+SCHEDULER (cada 5 horas automáticamente)
+  │
+  ├─→ search_flights_date_range()
+  │    └─ Buscar todos los vuelos en el rango
+  │
+  ├─→ guardar_precio()
+  │    └─ Guardar en PrecioHistorico (BD)
+  │
+  ├─→ precio_es_buena_oferta()
+  │    ├─ Comparar con promedio histórico
+  │    ├─ Verificar si es -20%
+  │    └─ Detectar si es oferta
+  │
+  └─→ telegram_bot.send_message()
+       └─ Alertar al usuario si hay oferta
+```
+
+### Modelos de BD:
+
+```sql
+Tabla 'rutas':
+  - Qué monitorear (origen, destino, fechas)
+  - Umbrales de alerta (precio_mínimo, rebaja%)
+
+Tabla 'precios_historicos':
+  - Todos los precios encontrados
+  - Permite calcular media histórica
+  - Base para detectar ofertas
+
+Tabla 'alertas':
+  - Registro de alertas enviadas
+  - Previene enviar duplicadas
 ```
 
 ### Jobs automáticos:
 
 | Job | Frecuencia | Función |
 |-----|-----------|---------|
-| 🔍 Check+Alert | Cada 2 horas | Busca y notifica |
-| 📊 Reporte | 09:00 diariamente | Resumen del día |
-| 🧹 Limpieza | Cada 30 días | Elimina datos >30d |
-| 📈 Estadísticas | Cada 1 hora | Log de stats |
+| 🔍 Búsqueda | Cada 5 horas | Busca vuelos en Amadeus |
+| 💾 Guardar precios | Cada búsqueda | Almacena en BD |
+| 📊 Análisis | Cada búsqueda | Compara vs histórico |
+| 📬 Alertas | Cada búsqueda | Envía a Telegram si hay oferta |
 
 ---
 

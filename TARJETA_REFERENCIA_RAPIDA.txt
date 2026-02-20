@@ -1,0 +1,181 @@
+═══════════════════════════════════════════════════════════════════════════════
+    🛫 FLIGHT TRACKER - TARJETA DE REFERENCIA RÁPIDA 🛫
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       📋 RUTAS DE MONITOREO ACTIVAS                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Ruta 1: MADRID → BANGKOK                                                 │
+│  ├─ Período:    01 Abril - 30 Abril 2026                                  │
+│  ├─ Retorno:    10 a 30 días después                                       │
+│  ├─ Alerta:     15% rebaja O menos de €500                                │
+│  └─ Status:     ✅ Activa monitoreándose                                   │
+│                                                                             │
+│  Ruta 2: MADRID → NUEVA YORK                                              │
+│  ├─ Período:    01 Diciembre - 31 Diciembre 2026                          │
+│  ├─ Retorno:    8 a 15 días después                                        │
+│  ├─ Alerta:     15% rebaja O menos de €400                                │
+│  └─ Status:     ✅ Activa monitoreándose                                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            🔗 ENLACES ÚTILES                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  CREAR CUENTA:                                                            │
+│  GitHub:    https://github.com/signup                                    │
+│  Render:    https://render.com/register                                  │
+│                                                                             │
+│  APIs:                                                                     │
+│  Amadeus:   https://developer.amadeus.com                                │
+│  RapidAPI:  https://rapidapi.com                                         │
+│  Telegram:  @BotFather (escribe /newbot)                                 │
+│                                                                             │
+│  TOKENS:                                                                   │
+│  GitHub Token:    https://github.com/settings/tokens/new                 │
+│  RapidAPI Keys:   https://rapidapi.com/user/me/apps                      │
+│  Render Docs:     https://docs.render.com                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     ⚙️ VARIABLES DE ENTORNO NECESARIAS                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  AMADEUS_CLIENT_ID           [obtener de amadeus.com developer]          │
+│  AMADEUS_CLIENT_SECRET       [obtener de amadeus.com developer]          │
+│  RAPIDAPI_KEY                [obtener de rapidapi.com profile]           │
+│  TELEGRAM_TOKEN              [obtener de @BotFather]                     │
+│  DATABASE_URL (opcional)     [si usas PostgreSQL remoto]                │
+│                                                                             │
+│  Ver archivo: .env.example                                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    🚀 COMANDOS PARA TERMINAL (POWERSHELL)                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PROBAR LOCALMENTE:                                                       │
+│  $ python run_combined.py                                                 │
+│  $ python diagnostics.py                                                  │
+│  $ python listar_rutas.py                                                 │
+│                                                                             │
+│  GIT OPERATIONS:                                                          │
+│  $ git init                                                               │
+│  $ git add .                                                              │
+│  $ git commit -m "Mensaje"                                                │
+│  $ git push -u origin main                                                │
+│  $ git status                                                             │
+│                                                                             │
+│  AGREGAR NUEVAS RUTAS:                                                    │
+│  $ python agregar_rutas.py  (luego edita el script con tus rutas)          │
+│                                                                             │
+│  ACTUALIZAR DEPENDENCIAS:                                                 │
+│  $ pip install -r requirements.txt                                        │
+│  $ pip freeze > requirements.txt                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       📋 CHECKLIST: 13 MINUTOS PARA PRODUCCIÓN            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PASO 1: PREPARAR (3 min)                                                  │
+│  ☐ Leer QUICKSTART_DEPLOY.md                                              │
+│  ☐ Crear cuenta GitHub (o loguear)                                        │
+│                                                                             │
+│  PASO 2: SUBIR CÓDIGO (3 min)                                             │
+│  ☐ git init && git add . && git commit                                    │
+│  ☐ git remote add origin https://github.com/TU_USUARIO/flight-tracker   │
+│  ☐ git push -u origin main                                                │
+│                                                                             │
+│  PASO 3: RENDER (2 min)                                                    │
+│  ☐ Sign up: render.com (con GitHub)                                      │
+│  ☐ New Web Service → Conectar repositorio                                 │
+│  ☐ Build: pip install -r requirements.txt                                │
+│  ☐ Start: python run_combined.py                                          │
+│                                                                             │
+│  PASO 4: ENVIRONMENT (1 min)                                              │
+│  ☐ Agregar variables en Render Dashboard                                  │
+│  ☐ Copy-paste desde .env.example                                          │
+│                                                                             │
+│  PASO 5: DEPLOY (2 min)                                                    │
+│  ☐ Click "Save" en Render → Auto-deploy                                  │
+│  ☐ Esperar a que cambie a "Active"                                       │
+│                                                                             │
+│  PASO 6: VERIFICAR (2 min)                                                │
+│  ☐ Enviar /start al bot en Telegram                                      │
+│  ☐ Ver logs en Render Dashboard                                          │
+│  ☐ ¡Listo! 24/7 en la nube 🎉                                            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     🤖 COMANDOS TELEGRAM BOT                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  /start              Ver menú principal                                   │
+│  /agregar            Agregar nueva ruta de búsqueda                       │
+│  /buscar             Buscar vuelos de las rutas activas                   │
+│  /listar             Ver todas las rutas monitoreadas                     │
+│  /ayuda              Ver ayuda y comandos disponibles                     │
+│                                                                             │
+│  El bot responde AUTOMÁTICAMENTE cada 5 horas                             │
+│  (y cuando tú lo pidas con /buscar)                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ⚡ TROUBLESHOOTING RÁPIDO                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ❌ "Git command not found"                                                │
+│  ✓ Instalar: https://git-scm.com                                          │
+│                                                                             │
+│  ❌ "Module not found" en Render                                           │
+│  ✓ git push newamente                                                     │
+│  ✓ Revisar requirements.txt contiene todas las librerías                  │
+│                                                                             │
+│  ❌ "Bot no responde" en Telegram                                          │
+│  ✓ Revisar TELEGRAM_TOKEN en Render Environment                          │
+│  ✓ Ver logs: Render Dashboard → [tu-servicio] → Logs                     │
+│                                                                             │
+│  ❌ "Build fails" en Render                                                │
+│  ✓ Ver logs completos en Render Dashboard                                │
+│  ✓ Buscar palabra "error" en la salida                                    │
+│  ✓ Verificar que render.yaml está correcto                               │
+│                                                                             │
+│  ❌ "APIs retornan 401"                                                    │
+│  ✓ Verificar keys en: https://rapidapi.com/user/me                       │
+│  ✓ Revisar que keys están en Render Environment                          │
+│  ✓ Probar localmente: python test_rapidapi.py                            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    📊 ESTADO ACTUAL DEL SISTEMA                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  LOCAL (tu PC):                                                           │
+│  ✅ 3/3 APIs funcionando                                                   │
+│  ✅ 2/2 rutas monitoreadas                                                 │
+│  ✅ Bot respondiendo comandos                                              │
+│  ✅ Búsqueda automática: cada 5 horas                                     │
+│  ✅ BD SQLite con histórico de precios                                    │
+│                                                                             │
+│  RENDER (próximamente):                                                   │
+│  ⏳ Esperando que subas código                                             │
+│  ⏳ Disponibilidad: 24/7/365                                              │
+│  ⏳ Escalabilidad: Ilimitada                                              │
+│  ⏳ Costo: Gratis (plan Free)                                             │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  PRÓXIMA META: Ahora solo necesitas seguir los 13 pasos arriba  ⚡        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+Creado: 20 de Febrero 2026 | Versión: 3.0 Production Ready
+═══════════════════════════════════════════════════════════════════════════════

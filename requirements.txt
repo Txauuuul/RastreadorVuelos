@@ -5,18 +5,19 @@ amadeus
 # Variables de entorno (configuración sensible)
 python-dotenv
 
-# Base de datos
-# sqlite3 viene incluido en Python, no necesitas instalarlo
+# Base de datos PostgreSQL
+psycopg2-binary
+sqlalchemy
 
 # Utilidades para logging y validación
 python-dateutil
+pytz
 
-# Scheduling de tareas periódicas
+# Scheduling de tareas periódicas (ejecutar cada X horas)
 schedule
 
-# Opcional: para análisis de datos y cálculos estadísticos
+# Análisis de datos y cálculos estadísticos
 numpy
 pandas
-
 # Notificaciones por Telegram
-python-telegram-bot==20.7
+python-telegram-bot

@@ -31,6 +31,17 @@ DATA_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 
 # ==================== BASE DE DATOS ====================
+# PostgreSQL en Render (gratuito pero con limitaciones pequeñas)
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# Fallback a SQLite local si no hay PostgreSQL configurado
+if not DATABASE_URL or DATABASE_URL.startswith("postgresql"):
+    # PostgreSQL URL format: postgresql://user:password@host:port/dbname
+    # Obtenlo de tu dashboard de Render
+    pass
+# Si está vacío, la BD automáticamente usará SQLite local como fallback
+
+# No necesitamos DB_PATH si usamos PostgreSQL, pero lo dejamos para SQLite
 DB_PATH = os.getenv("DB_PATH", str(DATA_DIR / "vuelos.db"))
 
 # ==================== API AMADEUS ====================
@@ -69,6 +80,19 @@ if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         "2. Crea un bot en Telegram siguiendo los pasos documentados\n"
         "3. Rellena TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en .env"
     )
+
+# ==================== APIs DE BÚSQUEDA DE VUELOS ====================
+# Skyscanner API (OPCIONAL - para búsquedas alternativas)
+SKYSCANNER_API_KEY = os.getenv("SKYSCANNER_API_KEY", "sk_live_DUMMY")
+
+# Kiwi.com API (OPCIONAL - generalmente más barato que Amadeus)
+KIWI_API_KEY = os.getenv("KIWI_API_KEY", "DUMMY")
+
+# Google Flights API (OPCIONAL - si necesitas comparar precios)
+GOOGLE_FLIGHTS_API_KEY = os.getenv("GOOGLE_FLIGHTS_API_KEY", "DUMMY")
+
+# RapidAPI Key (Para FlyScraper y Google Flights Scraper en RapidAPI)
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "DUMMY")
 
 # ==================== DEBUG ====================
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
